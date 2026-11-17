@@ -1,3 +1,4 @@
+html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,15 +7,12 @@
   <title>Workspace - AnyCardHub Pro</title>
   <script src="https://tailwindcss.com"></script>
   <link href="https://cloudflare.com" rel="stylesheet">
-  <!-- PDF.js for High-DPI Rendering & Auto-Crop/Rotate -->
   <script src="https://cloudflare.com"></script>
-  <!-- jsPDF for Exact A4 CR80 Sheet Generation -->
   <script src="https://cloudflare.com"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
   <div class="flex min-h-screen">
-    <!-- Sidebar -->
     <aside class="w-60 bg-slate-900 text-slate-200 flex flex-col justify-between hidden md:flex">
       <div>
         <div class="p-5 border-b border-slate-800 flex items-center gap-3">
@@ -41,9 +39,7 @@
       </div>
     </aside>
 
-    <!-- Main Area -->
     <div class="flex-1 flex flex-col">
-      <!-- Top Header -->
       <header class="bg-white border-b border-slate-200 px-6 py-3.5 flex justify-between items-center sticky top-0 z-10">
         <div>
           <h1 class="font-bold text-slate-800" id="userName">Loading...</h1>
@@ -64,14 +60,11 @@
       </header>
 
       <main class="p-5 max-w-7xl w-full mx-auto space-y-6">
-        
-        <!-- TAB 1: SERVICES GRID -->
         <div id="servicesTab">
           <h2 class="text-base font-bold mb-4 text-slate-700">Select Card Print Service</h2>
           <div id="servicesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         </div>
 
-        <!-- PRO CARD STUDIO (EXACTLY LIKE REFERENCE IMAGE 1) -->
         <div id="studioTab" class="hidden space-y-5">
           <div class="flex items-center justify-between">
             <button onclick="showTab('servicesTab')" class="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1">
@@ -80,17 +73,14 @@
             <span id="studioPriceBadge" class="bg-indigo-100 text-indigo-800 text-xs font-bold px-3 py-1 rounded-full">₹ 4 / Card</span>
           </div>
 
-          <!-- Top 2-Column Workspace -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            
-            <!-- Left Box: Make Cards (5 File Slots) -->
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
               <div class="border-b border-slate-100 pb-3 mb-4">
                 <h3 id="studioTitle" class="font-bold text-slate-800 text-sm">Make Ayushman (Cards)</h3>
                 <p class="text-[11px] text-slate-400">Upload 1 to 5 PDFs to generate CR80 front & back A4 sheet</p>
               </div>
 
-              <div class="space-y-2.5" id="fileSlotsContainer">
+              <div class="space-y-2.5">
                 <div class="flex items-center border border-slate-200 rounded-lg overflow-hidden text-xs">
                   <span class="bg-slate-100 px-3 py-2 font-semibold text-slate-600 border-r w-24">Select File 1*</span>
                   <input type="file" accept=".pdf" class="pdf-slot p-1.5 w-full text-slate-600">
@@ -113,7 +103,6 @@
                 </div>
               </div>
 
-              <!-- Orientation & Crop Adjustment -->
               <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <label class="flex items-center gap-2 font-semibold text-slate-600 cursor-pointer">
                   <input type="checkbox" id="autoRotateCheck" checked class="rounded text-indigo-600">
@@ -133,7 +122,6 @@
               </div>
             </div>
 
-            <!-- Right Box: Front and Back Live Preview -->
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between">
               <div>
                 <div class="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
@@ -144,7 +132,6 @@
                   <span id="previewCountBadge" class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded">0 Cards Ready</span>
                 </div>
 
-                <!-- Preview Canvas Area -->
                 <div id="previewBox" class="bg-slate-100 border border-dashed border-slate-300 rounded-xl min-h-[240px] p-3 flex flex-col items-center justify-center gap-3 overflow-y-auto max-h-[300px]">
                   <div class="text-center text-slate-400">
                     <i class="fa-regular fa-id-card text-4xl mb-2"></i>
@@ -161,18 +148,17 @@
             </div>
           </div>
 
-          <!-- Bottom Full-Width Box: A4 Size PDF Live Viewer -->
           <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-A4 size PDF.
-Exact 300-DPI A4 Print Sheet (Ready for PVC Tray / Inkjet / Laser Print)
-
-
- Save A4 PDF
-
-
-
-
-
+            <div class="mb-3 flex justify-between items-center">
+              <div>
+                <h3 class="font-bold text-slate-800 text-sm">A4 size PDF.</h3>
+                <p class="text-[11px] text-slate-400">Exact 300-DPI A4 Print Sheet (Ready for PVC Tray / Inkjet / Laser Print)</p>
+              </div>
+              <button onclick="downloadGeneratedPdf()" id="downloadA4Btn" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg">
+                <i class="fa-solid fa-file-pdf mr-1"></i> Save A4 PDF
+              </button>
+            </div>
+Use code with caution.
 
 Generated A4 Print Sheet will appear here automatically
 
@@ -196,14 +182,14 @@ if (!currentUser) window.location.href = '/';
 let selectedService = null;
 let generatedPdfBlobUrl = null;
 async function loadDashboard() {
-const res = await fetch(/api/data/${currentUser.id});
+const res = await fetch('/api/data/' + currentUser.id);
 const data = await res.json();
 currentUser = data.user;
 localStorage.setItem('cardpro_user', JSON.stringify(currentUser));
 document.getElementById('userName').innerText = currentUser.name;
 document.getElementById('userRoleBadge').innerText = currentUser.role;
-document.getElementById('walletAmt').innerText = ₹ ${currentUser.wallet.toFixed(2)};
-document.getElementById('dbBadge').innerText = DB: ${data.dbMode || 'Active'};
+document.getElementById('walletAmt').innerText = '₹ ' + currentUser.wallet.toFixed(2);
+document.getElementById('dbBadge').innerText = 'DB: ' + (data.dbMode || 'Active');
 if (currentUser.role === 'admin') {
 document.getElementById('adminMenuBtn').classList.remove('hidden');
 renderAdmin(data.services, data.allUsers);
@@ -216,9 +202,8 @@ ${t.desc}${t.type}₹ ${t.amount}${t.date}`).join('');
 }
 function openStudio(srv) {
 selectedService = srv;
-document.getElementById('studioTitle').innerText = Make ${srv.name};
-document.getElementById('studioPriceBadge').innerText = ₹ ${srv.price} / Card;
-// Set smart default split mode based on service
+document.getElementById('studioTitle').innerText = 'Make ' + srv.name;
+document.getElementById('studioPriceBadge').innerText = '₹ ' + srv.price + ' / Card';
 if (srv.id === 'srv-1' || srv.id === 'srv-2') {
 document.getElementById('splitMode').value = 'left_right';
 } else {
@@ -226,13 +211,12 @@ document.getElementById('splitMode').value = 'top_bottom';
 }
 showTab('studioTab');
 }
-// Helper: Render PDF Page to High-Res Canvas & Auto-Trim White Margins
 async function extractCardPairsFromPdf(file, autoRotate, splitMode) {
 const arrayBuffer = await file.arrayBuffer();
 const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 async function renderPageToCanvas(pageNum) {
 const page = await pdf.getPage(pageNum);
-const viewport = page.getViewport({ scale: 3.0 }); // 300 DPI Sharp Quality
+const viewport = page.getViewport({ scale: 3.0 });
 const canvas = document.createElement('canvas');
 canvas.width = viewport.width;
 canvas.height = viewport.height;
@@ -316,7 +300,7 @@ return alert('Please select at least 1 PDF file in Select File 1.');
 }
 const totalCost = files.length * selectedService.price;
 if (currentUser.wallet < totalCost) {
-return alert(Insufficient balance! Required: ₹${totalCost}, Available: ₹${currentUser.wallet});
+return alert('Insufficient balance! Required: ₹' + totalCost + ', Available: ₹' + currentUser.wallet);
 }
 const btn = document.getElementById('submitStudioBtn');
 btn.innerText = 'Formatting Cards...';
@@ -329,7 +313,6 @@ for (const f of files) {
 const pair = await extractCardPairsFromPdf(f, autoRotate, splitMode);
 cardPairs.push(pair);
 }
-// Deduct wallet via backend API
 for (const f of files) {
 const fd = new FormData();
 fd.append('pdfFile', f);
@@ -337,27 +320,22 @@ fd.append('userId', currentUser.id);
 fd.append('serviceId', selectedService.id);
 await fetch('/api/print/generate', { method: 'POST', body: fd });
 }
-// Render Live Front & Back Preview
 const previewBox = document.getElementById('previewBox');
 previewBox.innerHTML = cardPairs.map((pair, idx) => <div class="w-full bg-white p-2 rounded-lg border border-slate-200 shadow-sm"> <p class="text-[10px] font-bold text-slate-400 mb-1">Card #${idx + 1} (CR80 Front & Back)</p> <div class="grid grid-cols-2 gap-2"> <img src="${pair.front}" class="w-full h-28 object-contain border rounded bg-slate-50"> <img src="${pair.back}" class="w-full h-28 object-contain border rounded bg-slate-50"> </div> </div>).join('');
-document.getElementById('previewCountBadge').innerText = ${cardPairs.length} Card(s) Ready;
-// Build Exact A4 CR80 Print PDF (85.6mm x 54mm per card)
+document.getElementById('previewCountBadge').innerText = cardPairs.length + ' Card(s) Ready';
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 cardPairs.forEach((pair, idx) => {
-const yPos = 10 + idx * 56; // 5 cards fit cleanly on 1 A4 page (297mm height)
-// Front Card (Left: X=14mm, W=85.6mm, H=54mm)
+const yPos = 10 + idx * 56;
 doc.addImage(pair.front, 'JPEG', 14, yPos, 85.6, 54);
 doc.setDrawColor(200);
-doc.rect(14, yPos, 85.6, 54); // Thin cutting border
-// Back Card (Right: X=110mm, W=85.6mm, H=54mm)
+doc.rect(14, yPos, 85.6, 54);
 doc.addImage(pair.back, 'JPEG', 110, yPos, 85.6, 54);
 doc.rect(110, yPos, 85.6, 54);
 });
 const pdfBlob = doc.output('blob');
 if (generatedPdfBlobUrl) URL.revokeObjectURL(generatedPdfBlobUrl);
 generatedPdfBlobUrl = URL.createObjectURL(pdfBlob);
-// Show inside Bottom A4 PDF Viewer
 const iframe = document.getElementById('a4PdfViewer');
 iframe.src = generatedPdfBlobUrl;
 iframe.classList.remove('hidden');
@@ -376,7 +354,7 @@ function downloadGeneratedPdf() {
 if (!generatedPdfBlobUrl) return;
 const a = document.createElement('a');
 a.href = generatedPdfBlobUrl;
-a.download = ${selectedService.id}_CR80_A4_Sheet.pdf;
+a.download = selectedService.id + '_CR80_A4_Sheet.pdf';
 a.click();
 }
 function renderAdmin(services, users) {
@@ -386,7 +364,7 @@ ${u.id}
 ${u.name}${u.email}₹ ${u.wallet.toFixed(2)}`).join('');
 }
 async function updateService(serviceId) {
-const price = document.getElementById(price-${serviceId}).value;
+const price = document.getElementById('price-' + serviceId).value;
 await fetch('/api/admin/service', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceId, price }) });
 alert('Price updated!');
 loadDashboard();
