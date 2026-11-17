@@ -14,7 +14,7 @@
 .dark .pair-side{background:#1d302b;border-color:#52685e}
 
 /* Multiple uploaded card sets on one A4 sheet */
-.multi-pair-sheet{display:grid;grid-template-rows:repeat(3,minmax(0,1fr));gap:20mm;box-sizing:border-box}
+.multi-pair-sheet{display:grid;grid-template-rows:repeat(3,minmax(0,1fr));gap:4mm;box-sizing:border-box}
 .multi-pair-row{display:flex;flex-direction:column;min-height:0;overflow:hidden;border:1px dashed #cbd9d2;padding:3px;gap:3px}
 .multi-pair-label{font-size:8px;line-height:1.2;color:#087e75;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;flex:0 0 auto}
 .multi-pair-sides{display:grid;grid-template-columns:1fr 1fr;gap:4px;min-height:0;flex:1}
@@ -28,7 +28,7 @@
 /* Card Studio: all source previews above the full-width print sheet */
 .card-top-layout{align-items:start}
 .card-top-layout>.panel{min-width:0}
-.all-card-pairs{display:grid;grid-template-columns:1fr;gap:20mm;max-height:720px;overflow:auto;padding-right:4px}
+.all-card-pairs{display:grid;grid-template-columns:1fr;gap:4mm;max-height:720px;overflow:auto;padding-right:4px}
 .all-card-pair{border:1px solid #e0e9e4;border-radius:9px;padding:8px;min-width:0}
 .all-card-pair-title{font-size:10px;font-weight:700;color:#52665e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px}
 .all-card-pair-sides{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:135px}
