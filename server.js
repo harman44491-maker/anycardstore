@@ -245,7 +245,6 @@ app.post('/api/print/generate', upload.single('pdfFile'), async (req, res) => {
     const [embeddedPage] = await outPdf.embedPages([pages]);
 
     a4Page.drawPage(embeddedPage, { x: 45, y: 630, width: 242.6, height: 153 });
-Use code with caution.
 a4Page.drawPage(embeddedPage, { x: 305, y: 630, width: 242.6, height: 153 });
 const txn = {
 txnId: 'PRT-' + Math.floor(100000 + Math.random() * 900000),
