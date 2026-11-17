@@ -36,7 +36,7 @@ function Stat({icon,label,value,tone}){return <div className={`stat ${tone}`}><d
 function Service({icon,title,desc,onClick}){return <button className="service-card" onClick={onClick}><div className="service-icon">{icon}</div><h3>{title}</h3><p>{desc}</p><span className="service-link">Open service →</span></button>}
 function Cards({query,setQuery,onSelect}){const filtered=cards.filter(c=>c.name.toLowerCase().includes(query.toLowerCase()));return <><PageTitle icon={<CreditCard/>} title="Punjab Card Services" subtitle="Search and select a card template to start."/><div className="search-box"><Search/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search card by name…"/></div><div className="card-grid">{filtered.map(c=><button className="template-card" key={c.slug} onClick={()=>onSelect(c)}><div className="template-logo"><CreditCard/></div><h3>{c.name}</h3><p>Card printing template</p><span className="template-open">Open editor →</span></button>)}</div>{!filtered.length&&<div className="empty">No matching card templates found.</div>}</>}
 function CardStudio({card,addHistory}){
- const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(20),[busy,setBusy]=useState(false);
+ const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(5),[busy,setBusy]=useState(false);
  const [previewSheets,setPreviewSheets]=useState([]),[previewPage,setPreviewPage]=useState(0),[previewLoading,setPreviewLoading]=useState(false),[previewError,setPreviewError]=useState('');
  const perSheet=3;
  useEffect(()=>{
@@ -81,13 +81,13 @@ function CardStudio({card,addHistory}){
   const ratio=Math.min(w/side.width,h/side.height),drawW=side.width*ratio,drawH=side.height*ratio;
   pdf.addImage(side.data,'JPEG',x+(w-drawW)/2,y+(h-drawH)/2,drawW,drawH,undefined,'FAST');
  };
- const generate=async()=>{
+ const generate=async(action='download')=>{
   if(!files.length)return alert('Please select at least one image or PDF file.');
   setBusy(true);
   try{
    const pdf=new jsPDF({orientation,unit:'mm',format:paper.toLowerCase()});
    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
-   const gap=4,rowGap=4,sideW=(pw-2*margin-gap)/2,rowH=(ph-2*margin-2*rowGap)/3;
+   const gap=20,rowGap=4,sideW=(pw-2*margin-gap)/2,rowH=(ph-2*margin-2*rowGap)/3;
    for(let i=0;i<files.length;i++){
     if(i>0&&i%perSheet===0)pdf.addPage();
     const file=files[i];let front=null,back=null;
@@ -102,7 +102,7 @@ function CardStudio({card,addHistory}){
     addSide(pdf,front,margin,y,sideW,sideH);
     addSide(pdf,back,margin+sideW+gap,y,sideW,sideH);
    }
-   pdf.save(`${card.toLowerCase().replaceAll(' ','-')}-print.pdf`);
+   if(action==='print'){const blob=pdf.output('blob');const url=URL.createObjectURL(blob);const win=window.open(url,'_blank');if(!win)alert('Please allow pop-ups to print the PDF.');else win.addEventListener('load',()=>win.print(),{once:true});}else{pdf.save(`${card.toLowerCase().replaceAll(' ','-')}-print.pdf`);}
    await addHistory('Card',`${card} (${files.length} set(s))`);
   }catch(e){alert('Could not create PDF: '+e.message)}finally{setBusy(false)}
  };
@@ -122,7 +122,7 @@ function CardStudio({card,addHistory}){
    {previewError&&<div className="print-summary">{previewError}</div>}
   </div>
  </div>
- <div className="panel pad card-print-panel"><h2>A4 Print Preview</h2><p className="muted">This is how the downloaded PDF will be arranged. Up to three Front + Back sets per page.</p>
+ <div className="panel pad card-print-panel"><div className="print-preview-heading"><div><h2>A4 Print Preview</h2><p className="muted">This is how the downloaded PDF will be arranged. Up to three Front + Back sets per page.</p></div><div className="print-preview-actions"><button className="primary" disabled={busy||!files.length} onClick={()=>generate('download')}><Download size={15}/>{busy?'Preparing…':'Download PDF'}</button><button className="secondary" disabled={busy||!files.length} onClick={()=>generate('print')}><Printer size={15}/>Print</button></div></div>
   {files.length?<><div className="preview-toolbar"><span>A4 sheet {previewPage+1} of {Math.max(1,previewSheets.length)} · Sets {previewPage*3+1}–{Math.min((previewPage+1)*3,files.length)} of {files.length}</span><div className="page-controls"><button className="icon-btn" disabled={previewPage===0} onClick={()=>setPreviewPage(p=>Math.max(0,p-1))}>‹</button><small>Page {previewPage+1} / {Math.max(1,previewSheets.length)}</small><button className="icon-btn" disabled={previewPage>=previewSheets.length-1} onClick={()=>setPreviewPage(p=>Math.min(previewSheets.length-1,p+1))}>›</button></div></div>
    <div className="a4-preview-wrap print-sheet-wrap"><div className="a4-preview multi-pair-sheet" style={{aspectRatio:orientation==='landscape'?'297 / 210':'210 / 297',padding:`${margin}mm`}}>{previewLoading?<span className="preview-status">Rendering print sheet…</span>:currentSheet.map((item,i)=><div className="multi-pair-row" key={item.name+'-'+i}><div className="multi-pair-label">SET {previewPage*3+i+1} · {item.name}</div><div className="multi-pair-sides"><div className="pair-side"><b>FRONT</b>{item.sides[0]?<img src={item.sides[0]} alt="Front side"/>:<span className="blank-side">No front image</span>}</div><div className="pair-side"><b>BACK</b>{item.sides[1]?<img src={item.sides[1]} alt="Back side"/>:<span className="blank-side">Blank back</span>}</div></div></div>)}</div></div>
    <div className="print-summary">Total: {files.length} uploaded file(s) = {files.length} set(s) · Up to 3 sets per {paper} page</div>
