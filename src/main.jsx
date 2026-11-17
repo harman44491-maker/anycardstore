@@ -38,7 +38,7 @@ function Cards({query,setQuery,onSelect}){const filtered=cards.filter(c=>c.name.
 function CardStudio({card,addHistory}){
  const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(8),[busy,setBusy]=useState(false);
  const [previewSheets,setPreviewSheets]=useState([]),[previewPage,setPreviewPage]=useState(0),[previewLoading,setPreviewLoading]=useState(false),[previewError,setPreviewError]=useState('');
- const perSheet=2;
+ const perSheet=3;
  useEffect(()=>{
   let cancelled=false;
   async function renderAll(){
@@ -87,7 +87,7 @@ function CardStudio({card,addHistory}){
   try{
    const pdf=new jsPDF({orientation,unit:'mm',format:paper.toLowerCase()});
    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
-   const gap=4,rowGap=5,sideW=(pw-2*margin-gap)/2,rowH=(ph-2*margin-rowGap)/2;
+   const gap=4,rowGap=4,sideW=(pw-2*margin-gap)/2,rowH=(ph-2*margin-2*rowGap)/3;
    for(let i=0;i<files.length;i++){
     if(i>0&&i%perSheet===0)pdf.addPage();
     const file=files[i];let front=null,back=null;
@@ -107,19 +107,19 @@ function CardStudio({card,addHistory}){
   }catch(e){alert('Could not create PDF: '+e.message)}finally{setBusy(false)}
  };
  const currentSheet=previewSheets[previewPage]||[];
- return <><PageTitle icon={<CreditCard/>} title={`${card} Card Studio`} subtitle="Two uploaded files create two Front + Back sets on one A4 sheet."/>;
+ return <><PageTitle icon={<CreditCard/>} title={`${card} Card Studio`} subtitle="Up to three Front + Back sets fit on one A4 sheet."/>;
  <div className="editor-layout">
-  <div className="panel pad"><h2>Upload card files</h2><p className="muted">Each PDF should contain two pages: Page 1 = Front and Page 2 = Back. Two uploaded files are arranged as two rows on each A4 sheet.</p>
+  <div className="panel pad"><h2>Upload card files</h2><p className="muted">Each PDF should contain two pages: Page 1 = Front and Page 2 = Back. Up to three uploaded files are arranged as three rows on each A4 sheet.</p>
    <FileDrop accept="image/*,application/pdf" multiple onFiles={changeFiles}/>
    {files.map((f,i)=><div className="file-row" key={i}><FileImage/><div><b>{f.name}</b><small>{(f.size/1024).toFixed(0)} KB · Set {i+1}</small></div><button className="icon-btn" onClick={()=>changeFiles(files.filter((_,j)=>j!==i))}><X size={16}/></button></div>)}
    <div className="form-grid"><label>Paper size<select value={paper} onChange={e=>setPaper(e.target.value)}><option>A4</option><option>Letter</option><option>Legal</option></select></label><label>Orientation<select value={orientation} onChange={e=>setOrientation(e.target.value)}><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label><label>Margins (mm)<input type="number" min="0" max="30" value={margin} onChange={e=>setMargin(Math.max(0,Math.min(30,+e.target.value||0)))}/></label></div>
    <button className="primary" disabled={busy||!files.length} onClick={generate}><Download size={16}/>{busy?'Preparing PDF…':'Download print-ready PDF'}</button>
   </div>
-  <div className="panel pad"><h2>Print preview</h2><p className="muted">Each row shows one file: Front on the left and Back on the right. Two sets per A4 page.</p>
-   {files.length?<><div className="preview-toolbar"><span>A4 sheet {previewPage+1} of {Math.max(1,previewSheets.length)} · Sets {previewPage*2+1}–{Math.min((previewPage+1)*2,files.length)} of {files.length}</span><div><button className="icon-btn" disabled={previewPage===0} onClick={()=>setPreviewPage(p=>Math.max(0,p-1))}>‹</button><button className="icon-btn" disabled={previewPage>=previewSheets.length-1} onClick={()=>setPreviewPage(p=>Math.min(previewSheets.length-1,p+1))}>›</button></div></div>
+  <div className="panel pad"><h2>Print preview</h2><p className="muted">Each row shows one file: Front on the left and Back on the right. Up to three sets per A4 page.</p>
+   {files.length?<><div className="preview-toolbar"><span>A4 sheet {previewPage+1} of {Math.max(1,previewSheets.length)} · Sets {previewPage*3+1}–{Math.min((previewPage+1)*3,files.length)} of {files.length}</span><div><button className="icon-btn" disabled={previewPage===0} onClick={()=>setPreviewPage(p=>Math.max(0,p-1))}>‹</button><button className="icon-btn" disabled={previewPage>=previewSheets.length-1} onClick={()=>setPreviewPage(p=>Math.min(previewSheets.length-1,p+1))}>›</button></div></div>
     <div className="a4-preview-wrap"><div className="a4-preview multi-pair-sheet" style={{aspectRatio:orientation==='landscape'?'297 / 210':'210 / 297',padding:`${Math.max(2,margin)}px`}}>{previewLoading?<span className="preview-status">Rendering all uploaded files…</span>:currentSheet.map((item,i)=><div className="multi-pair-row" key={item.name+'-'+i}><div className="multi-pair-label">SET {previewPage*2+i+1} · {item.name}</div><div className="multi-pair-sides"><div className="pair-side"><b>FRONT</b>{item.sides[0]?<img src={item.sides[0]} alt="Front side"/>:<span className="blank-side">No front image</span>}</div><div className="pair-side"><b>BACK</b>{item.sides[1]?<img src={item.sides[1]} alt="Back side"/>:<span className="blank-side">Blank back</span>}</div></div></div>)}</div></div>
     {previewError&&<div className="print-summary">{previewError}</div>}
-    <div className="print-summary">Output: {files.length} uploaded file(s) = {files.length} set(s) · Up to 2 sets per {paper} page</div>
+    <div className="print-summary">Output: {files.length} uploaded file(s) = {files.length} set(s) · Up to 3 sets per {paper} page</div>
    </>:<div className="preview-empty"><Image size={48}/><span>Your Front + Back preview will appear here</span></div>}
   </div>
  </div></>;
