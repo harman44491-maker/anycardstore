@@ -238,13 +238,15 @@ app.post('/api/print/generate', upload.single('pdfFile'), async (req, res) => {
     const outPdf = await PDFDocument.create();
     const a4Page = outPdf.addPage([595.28, 841.89]);
 
-    const pages = srcPdf.getPages();
-    if (!pages || pages.length === 0) {
-      return res.status(400).json({ error: 'Uploaded PDF has no readable pages.' });
+    const indices = srcPdf.getPageIndices();
+    if (!indices || indices.length === 0) {
+      return res.status(400).json({ error: 'Uploaded PDF has no pages.' });
     }
-    const [embeddedPage] = await outPdf.embedPages([pages]);
-
-    a4Page.drawPage(embeddedPage, { x: 45, y: 630, width: 242.6, height: 153 });
+    const copiedPages = await outPdf.copyPages(srcPdf, indices);
+Use code with caution.
+const firstPage = copiedPages.shift();
+const embeddedPage = await outPdf.embedPage(firstPage);
+a4Page.drawPage(embeddedPage, { x: 45, y: 630, width: 242.6, height: 153 });
 a4Page.drawPage(embeddedPage, { x: 305, y: 630, width: 242.6, height: 153 });
 const txn = {
 txnId: 'PRT-' + Math.floor(100000 + Math.random() * 900000),
