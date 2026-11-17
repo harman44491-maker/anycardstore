@@ -157,3 +157,176 @@
                 <i class="fa-solid fa-file-pdf mr-1"></i> Save A4 PDF
               </button>
             </div>
+            <div class="w-full h-[520px] bg-slate-800 rounded-xl overflow-hidden border border-slate-300 flex items-center justify-center">
+              <iframe id="a4PdfViewer" class="w-full h-full hidden"></iframe>
+              <div id="a4Placeholder" class="text-slate-400 text-xs text-center p-6">
+                <i class="fa-solid fa-file-pdf text-3xl mb-2 text-slate-500"></i>
+                <p>Generated A4 Print Sheet will appear here automatically</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="passbookTab" class="hidden">
+          <h2 class="text-base font-bold mb-4">Wallet & Print Ledger</h2>
+          <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 border-b uppercase text-slate-500">
+                <tr><th class="p-3.5">Txn ID</th><th class="p-3.5">Description</th><th class="p-3.5">Type</th><th class="p-3.5">Amount</th><th class="p-3.5">Date</th></tr>
+              </thead>
+              <tbody id="txnBody" class="divide-y"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="adminTab" class="hidden space-y-6">
+          <div>
+            <h2 class="text-base font-bold mb-3 text-amber-700">1. Manage Service Pricing</h2>
+            <div id="adminServicesList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+          </div>
+          <div>
+            <h2 class="text-base font-bold mb-3 text-amber-700">2. Manage Retailers & Wallets</h2>
+            <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 border-b uppercase text-slate-500">
+                  <tr><th class="p-3.5">ID</th><th class="p-3.5">Shop Name</th><th class="p-3.5">Email</th><th class="p-3.5">Wallet</th><th class="p-3.5">Action</th></tr>
+                </thead>
+                <tbody id="adminUsersBody" class="divide-y"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cloudflare.com';
+    let currentUser = JSON.parse(localStorage.getItem('cardpro_user'));
+    if (!currentUser) window.location.href = '/';
+    let selectedService = null;
+    let generatedPdfBlobUrl = null;
+
+    async function loadDashboard() {
+      const res = await fetch('/api/data/' + currentUser.id);
+      const data = await res.json();
+      currentUser = data.user;
+      localStorage.setItem('cardpro_user', JSON.stringify(currentUser));
+      document.getElementById('userName').innerText = currentUser.name;
+      document.getElementById('userRoleBadge').innerText = currentUser.role;
+      document.getElementById('walletAmt').innerText = '₹ ' + currentUser.wallet.toFixed(2);
+      document.getElementById('dbBadge').innerText = 'DB: ' + (data.dbMode || 'Active');
+      if (currentUser.role === 'admin') {
+        document.getElementById('adminMenuBtn').classList.remove('hidden');
+        renderAdmin(data.services, data.allUsers);
+      }
+      const grid = document.getElementById('servicesGrid');
+      grid.innerHTML = data.services.filter(s => s.active).map(s => `
+        <div onclick='openStudio(${JSON.stringify(s)})' class="cursor-pointer bg-white p-5 rounded-xl border border-slate-200 hover:border-indigo-500 hover:shadow-md transition">
+          <div class="flex justify-between items-start">
+            <div class="h-11 w-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg"><i class="fa-solid ${s.icon}"></i></div>
+            <span class="bg-slate-100 text-slate-800 text-xs font-extrabold px-3 py-1 rounded-full">₹ ${s.price} / Card</span>
+          </div>
+          <h3 class="font-bold text-sm mt-4">${s.name}</h3>
+          <p class="text-xs text-slate-500 mt-1">${s.desc}</p>
+        </div>
+      `).join('');
+      document.getElementById('txnBody').innerHTML = data.transactions.map(t => `
+        <tr><td class="p-3.5 font-mono">${t.id}</td><td class="p-3.5">${t.desc}</td><td class="p-3.5"><span class="px-2 py-0.5 rounded font-bold ${t.type === 'CREDIT' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${t.type}</span></td><td class="p-3.5 font-bold">₹ ${t.amount}</td><td class="p-3.5 text-slate-500">${t.date}</td></tr>
+      `).join('');
+    }
+
+    function openStudio(srv) {
+      selectedService = srv;
+      document.getElementById('studioTitle').innerText = 'Make ' + srv.name;
+      document.getElementById('studioPriceBadge').innerText = '₹ ' + srv.price + ' / Card';
+      document.getElementById('splitMode').value = (srv.id === 'srv-1' || srv.id === 'srv-2') ? 'left_right' : 'top_bottom';
+      showTab('studioTab');
+    }
+
+    async function extractCardPairsFromPdf(file, autoRotate, splitMode) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      async function renderPageToCanvas(pageNum) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 3.0 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        return trimWhitespace(canvas);
+      }
+      function trimWhitespace(canvas) {
+        const ctx = canvas.getContext('2d');
+        const { width, height } = canvas;
+        const imgData = ctx.getImageData(0, 0, width, height).data;
+        let minX = width, minY = height, maxX = 0, maxY = 0;
+        for (let y = 0; y < height; y += 2) {
+          for (let x = 0; x < width; x += 2) {
+            const idx = (y * width + x) * 4;
+            if (imgData[idx] < 245 || imgData[idx + 1] < 245 || imgData[idx + 2] < 245) {
+              if (x < minX) minX = x; if (x > maxX) maxX = x;
+              if (y < minY) minY = y; if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX <= minX || maxY <= minY) return canvas;
+        const cropW = maxX - minX, cropH = maxY - minY;
+        const trimmed = document.createElement('canvas');
+        trimmed.width = cropW; trimmed.height = cropH;
+        trimmed.getContext('2d').drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+        return trimmed;
+      }
+      function rotateIfVertical(canvas) {
+        if (!autoRotate || canvas.width >= canvas.height) return canvas;
+        const rot = document.createElement('canvas');
+        rot.width = canvas.height; rot.height = canvas.width;
+        const rctx = rot.getContext('2d');
+        rctx.translate(rot.width / 2, rot.height / 2);
+        rctx.rotate((90 * Math.PI) / 180);
+        rctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+        return rot;
+      }
+      function splitCanvas(canvas, mode) {
+        const c1 = document.createElement('canvas'), c2 = document.createElement('canvas');
+        if (mode === 'left_right') {
+          const halfW = Math.floor(canvas.width / 2);
+          c1.width = halfW; c1.height = canvas.height; c2.width = halfW; c2.height = canvas.height;
+          c1.getContext('2d').drawImage(canvas, 0, 0, halfW, canvas.height, 0, 0, halfW, canvas.height);
+          c2.getContext('2d').drawImage(canvas, halfW, 0, halfW, canvas.height, 0, 0, halfW, canvas.height);
+        } else {
+          const halfH = Math.floor(canvas.height / 2);
+          c1.width = canvas.width; c1.height = halfH; c2.width = canvas.width; c2.height = halfH;
+          c1.getContext('2d').drawImage(canvas, 0, 0, canvas.width, halfH, 0, 0, canvas.width, halfH);
+          c2.getContext('2d').drawImage(canvas, 0, halfH, canvas.width, halfH, 0, 0, canvas.width, halfH);
+        }
+        return { front: rotateIfVertical(trimWhitespace(c1)).toDataURL('image/jpeg', 0.95), back: rotateIfVertical(trimWhitespace(c2)).toDataURL('image/jpeg', 0.95) };
+      }
+      if (splitMode === 'two_pages' && pdf.numPages >= 2) {
+        const p1 = rotateIfVertical(await renderPageToCanvas(1));
+        const p2 = rotateIfVertical(await renderPageToCanvas(2));
+        return { front: p1.toDataURL('image/jpeg', 0.95), back: p2.toDataURL('image/jpeg', 0.95) };
+      }
+      return splitCanvas(await renderPageToCanvas(1), splitMode);
+    }
+
+    async function processAllCards() {
+      const slots = Array.from(document.querySelectorAll('.pdf-slot'));
+      const files = slots.map(input => input.files.item(0)).filter(Boolean);
+      if (files.length === 0) return alert('Please select at least 1 PDF file in Select File 1.');
+      const totalCost = files.length * selectedService.price;
+      if (currentUser.wallet < totalCost) return alert('Insufficient balance! Required: ₹' + totalCost);
+      const btn = document.getElementById('submitStudioBtn');
+      btn.innerText = 'Formatting Cards...'; btn.disabled = true;
+      try {
+        const autoRotate = document.getElementById('autoRotateCheck').checked;
+        const splitMode = document.getElementById('splitMode').value;
+        const cardPairs = [];
+        for (const f of files) cardPairs.push(await extractCardPairsFromPdf(f, autoRotate, splitMode));
+        for (const f of files) {
+          const fd = new FormData();
+          fd.append('pdfFile', f); fd.append('userId', currentUser.id); fd.append('serviceId', selectedService.id);
+          await fetch('/api/print/generate', { method: 'POST', body: fd });
+        }
+        document.getElementById('previewBox').innerHTML = cardPairs.map((pair, idx) => `
+          <div class="w-full bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
