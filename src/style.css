@@ -24,3 +24,21 @@
 .multi-pair-sides .blank-side{flex:1;display:grid;place-items:center;color:#a1ada7;font-size:9px}
 .dark .multi-pair-row{border-color:#52685e}
 .dark .multi-pair-sides .pair-side{background:#1d302b;border-color:#52685e}
+
+/* Card Studio: all source previews above the full-width print sheet */
+.card-top-layout{align-items:start}
+.card-top-layout>.panel{min-width:0}
+.all-card-pairs{display:grid;grid-template-columns:1fr;gap:12px;max-height:720px;overflow:auto;padding-right:4px}
+.all-card-pair{border:1px solid #e0e9e4;border-radius:9px;padding:8px;min-width:0}
+.all-card-pair-title{font-size:10px;font-weight:700;color:#52665e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px}
+.all-card-pair-sides{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:135px}
+.all-card-pair-sides .pair-side{height:150px;min-width:0;border:1px dashed #d2ded8;border-radius:6px;padding:5px}
+.all-card-pair-sides .pair-side>b{font-size:9px}
+.all-card-pair-sides .pair-side img{width:100%;height:calc(100% - 18px);object-fit:contain}
+.card-print-panel{margin-top:18px}
+.print-sheet-wrap{max-height:none;overflow:visible;padding:20px}
+.print-sheet-wrap .a4-preview{max-width:680px;width:100%;flex:none}
+@media(min-width:1200px){.all-card-pairs{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.all-card-pairs{grid-template-columns:1fr}.all-card-pair-sides .pair-side{height:125px}.print-sheet-wrap{padding:10px}.print-sheet-wrap .a4-preview{max-width:100%}}
+.dark .all-card-pair{border-color:#40564c}
+.dark .all-card-pair-title{color:#b4c4bd}
