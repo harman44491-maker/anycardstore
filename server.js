@@ -243,7 +243,6 @@ app.post('/api/print/generate', upload.single('pdfFile'), async (req, res) => {
       return res.status(400).json({ error: 'Uploaded PDF has no pages.' });
     }
     const copiedPages = await outPdf.copyPages(srcPdf, indices);
-Use code with caution.
 const firstPage = copiedPages.shift();
 const embeddedPage = await outPdf.embedPage(firstPage);
 a4Page.drawPage(embeddedPage, { x: 45, y: 630, width: 242.6, height: 153 });
