@@ -242,4 +242,67 @@ app.post('/api/print/generate', upload.single('pdfFile'), async (req, res) => {
     if (!pages || pages.length === 0) {
       return res.status(400).json({ error: 'Uploaded PDF has no readable pages.' });
     }
-    const [embeddedPage] = await outPdf.embedPages([pages[0]]);
+    const [embeddedPage] = await outPdf.embedPages([pages]);
+
+    a4Page.drawPage(embeddedPage, { x: 45, y: 630, width: 242.6, height: 153 });
+Use code with caution.
+a4Page.drawPage(embeddedPage, { x: 305, y: 630, width: 242.6, height: 153 });
+const txn = {
+txnId: 'PRT-' + Math.floor(100000 + Math.random() * 900000),
+userId: user.userId,
+type: 'DEBIT',
+amount: service.price,
+desc: 'Printed: ' + service.name,
+date: new Date().toLocaleString()
+};
+if (useMongo) {
+await User.updateOne({ userId }, { $inc: { wallet: -service.price } });
+await Transaction.create(txn);
+} else {
+const memUser = memDb.users.find(u => u.userId === userId);
+if (memUser) memUser.wallet -= service.price;
+memDb.transactions.unshift(txn);
+}
+const pdfBytes = await outPdf.save();
+res.setHeader('Content-Type', 'application/pdf');
+res.setHeader('Content-Disposition', 'attachment; filename="' + service.serviceId + '_CR80_Print.pdf"');
+res.send(Buffer.from(pdfBytes));
+} catch (err) {
+console.error('PDF Error:', err);
+res.status(500).json({ error: 'Failed to process PDF: ' + err.message });
+}
+});
+app.post('/api/admin/service', async (req, res) => {
+try {
+const { serviceId, price } = req.body;
+const p = parseFloat(price);
+if (useMongo) {
+await Service.updateOne({ serviceId }, { $set: { price: p } });
+} else {
+const s = memDb.services.find(x => x.serviceId === serviceId);
+if (s) s.price = p;
+}
+res.json({ success: true });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
+app.post('/api/admin/user-wallet', async (req, res) => {
+try {
+const { targetUserId, amount } = req.body;
+const amt = parseFloat(amount);
+if (useMongo) {
+await User.updateOne({ userId: targetUserId }, { $inc: { wallet: amt } });
+} else {
+const u = memDb.users.find(x => x.userId === targetUserId);
+if (u) u.wallet += amt;
+}
+res.json({ success: true });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+console.log('CardPro Portal Live on port ' + PORT);
+});
