@@ -42,3 +42,14 @@
 @media(max-width:760px){.all-card-pairs{grid-template-columns:1fr}.all-card-pair-sides .pair-side{height:125px}.print-sheet-wrap{padding:10px}.print-sheet-wrap .a4-preview{max-width:100%}}
 .dark .all-card-pair{border-color:#40564c}
 .dark .all-card-pair-title{color:#b4c4bd}
+
+/* Print preview controls and exact Front/Back spacing */
+.all-card-pair-sides{gap:20mm}
+.multi-pair-sides{gap:20mm}
+.print-preview-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.print-preview-heading h2{margin:0 0 5px}
+.print-preview-heading .muted{margin:0}
+.print-preview-actions{display:flex;align-items:center;gap:8px}
+.print-preview-actions button{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.print-sheet-wrap .a4-preview{padding:5mm!important}
+@media(max-width:760px){.all-card-pair-sides{gap:20mm}.print-preview-heading{align-items:flex-start}.print-preview-actions{width:100%}}
