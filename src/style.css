@@ -4,3 +4,11 @@
 
 /* Document and PDF preview improvements */
 .file-row{cursor:pointer}.file-row.active-file{border-color:#087e75;background:#f0faf6}.preview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0;font-size:11px;color:#52665e}.preview-toolbar>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.page-controls{display:flex;align-items:center;gap:9px;flex-shrink:0}.page-controls small{font-size:10px;color:#71817a;white-space:nowrap}.page-controls .icon-btn{width:30px;height:30px}.page-controls .icon-btn:disabled{opacity:.4;cursor:not-allowed}.a4-preview-wrap{background:#edf2ef;border-radius:10px;padding:16px;display:flex;justify-content:center;max-height:650px;overflow:auto}.a4-preview{width:100%;max-width:430px;background:#fff;box-shadow:0 3px 15px #183d2a1c;display:flex;align-items:center;justify-content:center;overflow:hidden}.a4-preview img{width:100%;height:100%;object-fit:contain}.preview-status{padding:25px;text-align:center;color:#87948f;font-size:11px}.print-summary{font-size:10px;color:#7b8a84;margin-top:12px}.dark .file-row.active-file{background:#24463d;border-color:#79d8b5}.dark .a4-preview-wrap{background:#263a33}
+
+/* Front-and-back card sheet preview */
+.pair-preview-sheet{display:grid;grid-template-columns:1fr 1fr;align-items:stretch;justify-content:stretch;gap:4px;padding:12px!important}
+.pair-side{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;border:1px dashed #cbd9d2;background:#fff;padding:5px;gap:6px}
+.pair-side>b{font-size:9px;letter-spacing:1px;color:#087e75;flex:0 0 auto}
+.pair-side img{width:100%;height:calc(100% - 18px);object-fit:contain;min-height:0}
+.blank-side{flex:1;display:grid;place-items:center;color:#a1ada7;font-size:10px}
+.dark .pair-side{background:#1d302b;border-color:#52685e}
