@@ -214,27 +214,45 @@ app.post('/api/payment/verify', async (req, res) => {
 app.post('/api/print/generate', upload.single('pdfFile'), async (req, res) => {
   try {
     const { userId, serviceId } = req.body;
-    const user = useMongo ? await User.findOne({ userId }) : memDb.users.find(u => u.userId === userId);
-    const service = useMongo ? await Service.findOne({ serviceId }) : memDb.services.find(s => s.serviceId === serviceId);
+    const user = await getUserById(userId);
+    const service = await getServiceById(serviceId);
 
     if (!user || !service) return res.status(404).json({ error: 'Invalid user or service' });
     if (user.wallet < service.price) return res.status(400).json({ error: 'Insufficient wallet balance! Please add money.' });
     if (!req.file) return res.status(400).json({ error: 'Please upload a valid PDF file.' });
 
+    // Load PDF safely (handles encrypted/government PDFs)
     const srcPdf = await PDFDocument.load(req.file.buffer, { ignoreEncryption: true });
     const outPdf = await PDFDocument.create();
     const a4Page = outPdf.addPage([595.28, 841.89]);
 
-    const [embeddedPage] = await outPdf.embedPage(srcPdf.getPages()[0]);
+    const pages = srcPdf.getPages();
+    const [embeddedPage] = await outPdf.embedPages([pages]);
+
+    // CR80 Front & Back Layout on A4
     a4Page.drawPage(embeddedPage, { x: 45, y: 630, width: 242.6, height: 153 });
     a4Page.drawPage(embeddedPage, { x: 305, y: 630, width: 242.6, height: 153 });
 
-    const txnObj = {
-      txnId: 'PRT-' + Math.floor(100000 + Math.random() * 900000),
-      userId, type: 'DEBIT', amount: service.price, desc: `Printed: ${service.name}`,
+    // Deduct Balance & Save Transaction
+    await updateUserWallet(user.id, -service.price);
+    await addTransaction({
+      id: 'PRT-' + Math.floor(100000 + Math.random() * 900000),
+      userId: user.id,
+      type: 'DEBIT',
+      amount: service.price,
+      desc: `Printed: ${service.name}`,
       date: new Date().toLocaleString()
-    };
+    });
 
+    const pdfBytes = await outPdf.save();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${service.id}_CR80_Print.pdf"`);
+    res.send(Buffer.from(pdfBytes));
+  } catch (err) {
+    console.error('PDF Error:', err);
+    res.status(500).json({ error: 'PDF error: ' + err.message });
+  }
+});
     if (useMongo) {
       await User.updateOne({ userId }, { $inc: { wallet: -service.price } });
       await Transaction.create(txnObj);
