@@ -14,8 +14,8 @@
 .dark .pair-side{background:#1d302b;border-color:#52685e}
 
 /* Multiple uploaded card sets on one A4 sheet */
-.multi-pair-sheet{display:grid;grid-template-rows:repeat(5,54mm);gap:2mm;align-content:start;box-sizing:border-box}
-.multi-pair-row{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;height:54mm;min-height:54mm;overflow:hidden;border:0;padding:0;gap:0}
+.multi-pair-sheet{display:grid;grid-template-rows:repeat(4,58mm);gap:2mm;align-content:start;box-sizing:border-box}
+.multi-pair-row{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;height:58mm;min-height:58mm;overflow:hidden;border:0;padding:0;gap:0}
 .multi-pair-label{display:none}
 .multi-pair-sides{display:grid;grid-template-columns:90mm 90mm;gap:2mm;width:182mm;height:58mm;min-height:58mm;flex:none;justify-content:center}
 .multi-pair-sides .pair-side{width:90mm;height:58mm;min-height:58mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;border:1px dashed #d4dfda;background:#fff;padding:0;gap:0}
