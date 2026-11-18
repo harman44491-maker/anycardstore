@@ -8,19 +8,25 @@
 /* Front-and-back card sheet preview */
 .pair-preview-sheet{display:grid;grid-template-columns:1fr 1fr;align-items:stretch;justify-content:stretch;gap:4px;padding:12px!important}
 .pair-side{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;border:1px dashed #cbd9d2;background:#fff;padding:5px;gap:6px}
-.pair-side>b{font-size:9px;letter-spacing:1px;color:#087e75;flex:0 0 auto}
+
+/* UPDATED: Card label text bada aur bold kiya gaya hai */
+.pair-side>b{font-size:12px;font-weight:800;letter-spacing:1px;color:#087e75;flex:0 0 auto}
+
 .pair-side img{width:100%;height:calc(100% - 18px);object-fit:contain;min-height:0}
 .blank-side{flex:1;display:grid;place-items:center;color:#a1ada7;font-size:10px}
 .dark .pair-side{background:#1d302b;border-color:#52685e}
 
-/* Multiple uploaded card sets on one A4 sheet */
-.multi-pair-sheet{display:grid;grid-template-rows:repeat(4,58mm);gap:2mm;align-content:start;box-sizing:border-box}
-.multi-pair-row{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;height:58mm;min-height:58mm;overflow:hidden;border:0;padding:0;gap:0}
+/* UPDATED: Multiple uploaded card rows height aur spacing kam ki gayi hai (58mm -> 52mm) */
+.multi-pair-sheet{display:grid;grid-template-rows:repeat(4,52mm);gap:1mm;align-content:start;box-sizing:border-box}
+.multi-pair-row{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;height:52mm;min-height:52mm;overflow:hidden;border:0;padding:0;gap:0}
 .multi-pair-label{display:none}
 .multi-pair-sides{display:grid;grid-template-columns:var(--card-width) var(--card-width);gap:var(--card-gap);width:var(--pair-width);height:var(--card-height);min-height:var(--card-height);flex:none;justify-content:center}
 .multi-pair-sides .pair-side{width:var(--card-width);height:var(--card-height);min-height:var(--card-height);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;border:0;position:relative;background:#fff;padding:0;gap:0}
 .multi-pair-sides .pair-side::after{content:'';position:absolute;inset:0 var(--border-side-inset) var(--border-bottom-inset);border:1px solid #111;pointer-events:none}
-.multi-pair-sides .pair-side>b{font-size:8px;letter-spacing:.7px;color:#087e75;flex:0 0 auto}
+
+/* UPDATED: Multi pair row ke andar ka label text bada aur bold */
+.multi-pair-sides .pair-side>b{font-size:11px;font-weight:800;letter-spacing:.7px;color:#087e75;flex:0 0 auto}
+
 .multi-pair-sides .pair-side img{width:100%;height:calc(100% - 14px);object-fit:contain;min-height:0}
 .multi-pair-sides .blank-side{flex:1;display:grid;place-items:center;color:#a1ada7;font-size:9px}
 .dark .multi-pair-row{border-color:#52685e}
@@ -35,7 +41,7 @@
 .all-card-pair-sides{display:grid;grid-template-columns:1fr 1fr;gap:var(--card-gap);align-items:start}
 .all-card-pair-sides .pair-side{aspect-ratio:var(--card-aspect);height:auto;min-width:0;border:0;position:relative;border-radius:6px;padding:5px}
 .all-card-pair-sides .pair-side::after{content:'';position:absolute;inset:0 var(--border-side-inset) var(--border-bottom-inset);border:1px solid #111;border-radius:6px;pointer-events:none}
-.all-card-pair-sides .pair-side>b{font-size:9px}
+.all-card-pair-sides .pair-side>b{font-size:10px;font-weight:800}
 .all-card-pair-sides .pair-side img{width:100%;height:calc(100% - 18px);object-fit:contain}
 .card-print-panel{margin-top:18px}
 .print-sheet-wrap{max-height:none;overflow:visible;padding:20px}
