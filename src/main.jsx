@@ -62,9 +62,12 @@ async function renderPdfSides(doc,scale,splitSinglePage){
  return [toSide(crop(0,leftWidth)),toSide(crop(leftWidth,rightWidth))];
 }
 function CardStudio({card,addHistory}){
- const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(4),[busy,setBusy]=useState(false),[pdfPassword,setPdfPassword]=useState('');
+ const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(6),[busy,setBusy]=useState(false),[pdfPassword,setPdfPassword]=useState('');
  const [previewSheets,setPreviewSheets]=useState([]),[previewPage,setPreviewPage]=useState(0),[previewLoading,setPreviewLoading]=useState(false),[previewError,setPreviewError]=useState('');
- const perSheet=5;
+ const cardWidth=90,cardHeight=58,cardGap=2,rowGap=2;
+ const pageDimensions={A4:{width:210,height:297},Letter:{width:215.9,height:279.4},Legal:{width:215.9,height:355.6}}[paper]||{width:210,height:297};
+ const sheetHeight=orientation==='portrait'?pageDimensions.height:pageDimensions.width;
+ const perSheet=Math.max(1,Math.floor((sheetHeight-2*margin+rowGap)/(cardHeight+rowGap)));
  useEffect(()=>{
   let cancelled=false;
   async function renderAll(){
@@ -77,7 +80,7 @@ function CardStudio({card,addHistory}){
      let sides=[];
      if(isPdfFile(file)){
       const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),password:pdfPassword||undefined}).promise;
-      const renderedSides=await renderPdfSides(doc,2.2,card.toLowerCase()==='aadhaar');
+      const renderedSides=await renderPdfSides(doc,3,card.toLowerCase()==='aadhaar');
       sides=renderedSides.map(side=>side?.data||'');
       if(!sides[1])setPreviewError(prev=>prev||file.name+' has one page; the Back side is blank.');
      }else sides=[await readData(file),''];
@@ -89,7 +92,7 @@ function CardStudio({card,addHistory}){
    finally{if(!cancelled)setPreviewLoading(false);}
   }
   renderAll();return()=>{cancelled=true;};
- },[files,pdfPassword]);
+ },[files,pdfPassword,perSheet]);
  const changeFiles=next=>{setFiles(next);setPreviewPage(0);};
  const addSide=(pdf,side,x,y,w,h)=>{
   if(!side)return;
@@ -102,13 +105,13 @@ function CardStudio({card,addHistory}){
   try{
    const pdf=new jsPDF({orientation,unit:'mm',format:paper.toLowerCase()});
    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
-   const printMargin=margin,gap=2,rowGap=2,sideW=90,sideH=58;
+   const printMargin=margin,gap=cardGap,rowGap,sideW=cardWidth,sideH=cardHeight;
    for(let i=0;i<files.length;i++){
     if(i>0&&i%perSheet===0)pdf.addPage();
     const file=files[i];let front=null,back=null;
     if(isPdfFile(file)){
      const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),password:pdfPassword||undefined}).promise;
-     [front,back]=await renderPdfSides(doc,3.2,card.toLowerCase()==='aadhaar');
+     [front,back]=await renderPdfSides(doc,4.5,card.toLowerCase()==='aadhaar');
     }else{
      const data=await readData(file),props=pdf.getImageProperties(data);
      front={data,width:props.width,height:props.height};
@@ -126,7 +129,7 @@ function CardStudio({card,addHistory}){
  let setIndex=0;
  return <><PageTitle icon={<CreditCard/>} title={`${card} Card Studio`} subtitle="Upload files, preview every Front + Back pair, then review the A4 print sheet below."/>;
  <div className="editor-layout card-top-layout">
-  <div className="panel pad"><h2>Upload card files</h2><p className="muted">Each PDF should contain two pages: Page 1 = Front and Page 2 = Back. Up to five uploaded files are arranged on each A4 sheet.</p>
+  <div className="panel pad"><h2>Upload card files</h2><p className="muted">Each PDF should contain two pages: Page 1 = Front and Page 2 = Back. Up to {perSheet} uploaded files are arranged on each sheet.</p>
    <FileDrop accept="image/*,application/pdf" multiple onFiles={changeFiles}/>
    {files.some(isPdfFile)&&<label className="pdf-password-field">PDF Password<input type="password" value={pdfPassword} onChange={e=>setPdfPassword(e.target.value)} placeholder="Enter password for protected PDF" autoComplete="off"/><small>Password is used locally in this browser to open the PDF.</small></label>}
    {files.map((f,i)=><div className="file-row" key={i}><FileImage/><div><b>{f.name}</b><small>{(f.size/1024).toFixed(0)} KB · Set {i+1}</small></div><button className="icon-btn" onClick={()=>changeFiles(files.filter((_,j)=>j!==i))}><X size={16}/></button></div>)}
@@ -138,9 +141,9 @@ function CardStudio({card,addHistory}){
    {previewError&&<div className="print-summary">{previewError}</div>}
   </div>
  </div>
- <div className="panel pad card-print-panel"><div className="print-preview-heading"><div><h2>A4 Print Preview</h2><p className="muted">This is how the downloaded PDF will be arranged. Up to five Front + Back sets per page.</p></div><div className="print-preview-actions"><button className="primary" disabled={busy||!files.length} onClick={()=>generate('download')}><Download size={15}/>{busy?'Preparing…':'Download PDF'}</button><button className="secondary" disabled={busy||!files.length} onClick={()=>generate('print')}><Printer size={15}/>Print</button></div></div>
-  {files.length?<><div className="preview-toolbar"><span>A4 sheet {previewPage+1} of {Math.max(1,previewSheets.length)} · Sets {previewPage*5+1}–{Math.min((previewPage+1)*5,files.length)} of {files.length}</span><div className="page-controls"><button className="icon-btn" disabled={previewPage===0} onClick={()=>setPreviewPage(p=>Math.max(0,p-1))}>‹</button><small>Page {previewPage+1} / {Math.max(1,previewSheets.length)}</small><button className="icon-btn" disabled={previewPage>=previewSheets.length-1} onClick={()=>setPreviewPage(p=>Math.min(previewSheets.length-1,p+1))}>›</button></div></div>
-   <div className="a4-preview-wrap print-sheet-wrap"><div className="a4-preview multi-pair-sheet" style={{aspectRatio:orientation==='landscape'?'297 / 210':'210 / 297',padding:`${margin}mm`}}>{previewLoading?<span className="preview-status">Rendering print sheet…</span>:currentSheet.map((item,i)=><div className="multi-pair-row" key={item.name+'-'+i}><div className="multi-pair-label">SET {previewPage*5+i+1} · {item.name}</div><div className="multi-pair-sides"><div className="pair-side"><b>FRONT</b>{item.sides[0]?<img src={item.sides[0]} alt="Front side"/>:<span className="blank-side">No front image</span>}</div><div className="pair-side"><b>BACK</b>{item.sides[1]?<img src={item.sides[1]} alt="Back side"/>:<span className="blank-side">Blank back</span>}</div></div></div>)}</div></div>
+ <div className="panel pad card-print-panel"><div className="print-preview-heading"><div><h2>A4 Print Preview</h2><p className="muted">This is how the downloaded PDF will be arranged. Up to {perSheet} Front + Back sets per page.</p></div><div className="print-preview-actions"><button className="primary" disabled={busy||!files.length} onClick={()=>generate('download')}><Download size={15}/>{busy?'Preparing…':'Download PDF'}</button><button className="secondary" disabled={busy||!files.length} onClick={()=>generate('print')}><Printer size={15}/>Print</button></div></div>
+  {files.length?<><div className="preview-toolbar"><span>A4 sheet {previewPage+1} of {Math.max(1,previewSheets.length)} · Sets {previewPage*perSheet+1}–{Math.min((previewPage+1)*perSheet,files.length)} of {files.length}</span><div className="page-controls"><button className="icon-btn" disabled={previewPage===0} onClick={()=>setPreviewPage(p=>Math.max(0,p-1))}>‹</button><small>Page {previewPage+1} / {Math.max(1,previewSheets.length)}</small><button className="icon-btn" disabled={previewPage>=previewSheets.length-1} onClick={()=>setPreviewPage(p=>Math.min(previewSheets.length-1,p+1))}>›</button></div></div>
+   <div className="a4-preview-wrap print-sheet-wrap"><div className="a4-preview multi-pair-sheet" style={{aspectRatio:orientation==='landscape'?'297 / 210':'210 / 297',padding:`${margin}mm`,gridTemplateRows:`repeat(${perSheet}, ${cardHeight}mm)`}}>{previewLoading?<span className="preview-status">Rendering print sheet…</span>:currentSheet.map((item,i)=><div className="multi-pair-row" key={item.name+'-'+i}><div className="multi-pair-label">SET {previewPage*5+i+1} · {item.name}</div><div className="multi-pair-sides"><div className="pair-side"><b>FRONT</b>{item.sides[0]?<img src={item.sides[0]} alt="Front side"/>:<span className="blank-side">No front image</span>}</div><div className="pair-side"><b>BACK</b>{item.sides[1]?<img src={item.sides[1]} alt="Back side"/>:<span className="blank-side">Blank back</span>}</div></div></div>)}</div></div>
    <div className="print-summary">Total: {files.length} uploaded file(s) = {files.length} set(s) · Up to 5 sets per {paper} page</div>
   </>:<div className="preview-empty"><Image size={48}/><span>Your A4 print preview will appear here</span></div>}
  </div></>;
