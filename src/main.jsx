@@ -62,7 +62,7 @@ async function renderPdfSides(doc,scale,splitSinglePage){
  return [toSide(crop(0,leftWidth)),toSide(crop(leftWidth,rightWidth))];
 }
 function CardStudio({card,addHistory}){
- const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(5),[busy,setBusy]=useState(false),[pdfPassword,setPdfPassword]=useState('');
+ const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(4),[busy,setBusy]=useState(false),[pdfPassword,setPdfPassword]=useState('');
  const [previewSheets,setPreviewSheets]=useState([]),[previewPage,setPreviewPage]=useState(0),[previewLoading,setPreviewLoading]=useState(false),[previewError,setPreviewError]=useState('');
  const perSheet=5;
  useEffect(()=>{
@@ -102,7 +102,7 @@ function CardStudio({card,addHistory}){
   try{
    const pdf=new jsPDF({orientation,unit:'mm',format:paper.toLowerCase()});
    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
-   const printMargin=margin,gap=3,rowGap=2,sideW=87,sideH=54;
+   const printMargin=margin,gap=2,rowGap=2,sideW=90,sideH=58;
    for(let i=0;i<files.length;i++){
     if(i>0&&i%perSheet===0)pdf.addPage();
     const file=files[i];let front=null,back=null;
