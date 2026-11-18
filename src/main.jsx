@@ -79,10 +79,20 @@ async function renderPdfSides(doc,scale,splitSinglePage){
  };
  return [toSide(trimCard(crop(0,leftWidth))),toSide(trimCard(crop(leftWidth,rightWidth)))];
 }
+const CARD_STUDIO_LAYOUTS={
+ aadhaar:{width:90,height:58,gap:2,rowGap:2,margin:6,borderSideInset:2,borderBottomInset:2,previewScale:3,printScale:4.5,splitSinglePage:true},
+ ayushman:{width:87,height:54,gap:3,rowGap:2,margin:5,borderSideInset:0,borderBottomInset:0,previewScale:2.2,printScale:3.2,splitSinglePage:false},
+ default:{width:87,height:54,gap:3,rowGap:2,margin:5,borderSideInset:0,borderBottomInset:0,previewScale:2.2,printScale:3.2,splitSinglePage:false}
+};
 function CardStudio({card,addHistory}){
- const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(6),[busy,setBusy]=useState(false),[pdfPassword,setPdfPassword]=useState('');
+ const [files,setFiles]=useState([]),[settingsByCard,setSettingsByCard]=useState({Aadhaar:{paper:'A4',orientation:'portrait',margin:6},Ayushman:{paper:'A4',orientation:'portrait',margin:5}}),[busy,setBusy]=useState(false),[pdfPassword,setPdfPassword]=useState('');
  const [previewSheets,setPreviewSheets]=useState([]),[previewPage,setPreviewPage]=useState(0),[previewLoading,setPreviewLoading]=useState(false),[previewError,setPreviewError]=useState('');
- const cardWidth=90,cardHeight=58,cardGap=2,rowGap=2;
+ const layout=CARD_STUDIO_LAYOUTS[card.toLowerCase()]||CARD_STUDIO_LAYOUTS.default;
+ const savedSettings=settingsByCard[card]||{};
+ const paper=savedSettings.paper||'A4',orientation=savedSettings.orientation||'portrait',margin=savedSettings.margin??layout.margin;
+ const updateSetting=(key,value)=>setSettingsByCard(prev=>({...prev,[card]:{...(prev[card]||{}),[key]:value}}));
+ const {width:cardWidth,height:cardHeight,gap:cardGap,rowGap,borderSideInset,borderBottomInset,previewScale,printScale,splitSinglePage}=layout;
+ const layoutCssVars={'--card-width':`${cardWidth}mm`,'--card-height':`${cardHeight}mm`,'--card-gap':`${cardGap}mm`,'--pair-width':`${cardWidth*2+cardGap}mm`,'--card-aspect':`${cardWidth} / ${cardHeight}`,'--border-side-inset':`${borderSideInset}mm`,'--border-bottom-inset':`${borderBottomInset}mm`};
  const pageDimensions={A4:{width:210,height:297},Letter:{width:215.9,height:279.4},Legal:{width:215.9,height:355.6}}[paper]||{width:210,height:297};
  const sheetHeight=orientation==='portrait'?pageDimensions.height:pageDimensions.width;
  const perSheet=Math.max(1,Math.floor((sheetHeight-2*margin+rowGap)/(cardHeight+rowGap)));
@@ -98,7 +108,7 @@ function CardStudio({card,addHistory}){
      let sides=[];
      if(isPdfFile(file)){
       const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),password:pdfPassword||undefined}).promise;
-      const renderedSides=await renderPdfSides(doc,3,card.toLowerCase()==='aadhaar');
+      const renderedSides=await renderPdfSides(doc,previewScale,splitSinglePage);
       sides=renderedSides.map(side=>side?.data||'');
       if(!sides[1])setPreviewError(prev=>prev||file.name+' has one page; the Back side is blank.');
      }else sides=[await readData(file),''];
@@ -110,7 +120,7 @@ function CardStudio({card,addHistory}){
    finally{if(!cancelled)setPreviewLoading(false);}
   }
   renderAll();return()=>{cancelled=true;};
- },[files,pdfPassword,perSheet]);
+ },[files,pdfPassword,perSheet,card,previewScale,splitSinglePage]);
  const changeFiles=next=>{setFiles(next);setPreviewPage(0);};
  const addSide=(pdf,side,x,y,w,h)=>{
   if(!side)return;
@@ -129,7 +139,7 @@ function CardStudio({card,addHistory}){
     const file=files[i];let front=null,back=null;
     if(isPdfFile(file)){
      const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),password:pdfPassword||undefined}).promise;
-     [front,back]=await renderPdfSides(doc,4.5,card.toLowerCase()==='aadhaar');
+     [front,back]=await renderPdfSides(doc,printScale,splitSinglePage);
     }else{
      const data=await readData(file),props=pdf.getImageProperties(data);
      front={data,width:props.width,height:props.height};
@@ -138,7 +148,7 @@ function CardStudio({card,addHistory}){
     addSide(pdf,front,x,y,sideW,sideH);
     addSide(pdf,back,x+sideW+gap,y,sideW,sideH);
     pdf.setDrawColor(0,0,0);pdf.setLineWidth(.25);
-    const borderSideInset=2,borderBottomInset=2;pdf.rect(x+borderSideInset,y,sideW-borderSideInset*2,sideH-borderBottomInset);pdf.rect(x+sideW+gap+borderSideInset,y,sideW-borderSideInset*2,sideH-borderBottomInset);
+    pdf.rect(x+borderSideInset,y,sideW-borderSideInset*2,sideH-borderBottomInset);pdf.rect(x+sideW+gap+borderSideInset,y,sideW-borderSideInset*2,sideH-borderBottomInset);
    }
    if(action==='print'){const blob=pdf.output('blob');const url=URL.createObjectURL(blob);const win=window.open(url,'_blank');if(!win)alert('Please allow pop-ups to print the PDF.');else win.addEventListener('load',()=>win.print(),{once:true});}else{pdf.save(`${card.toLowerCase().replaceAll(' ','-')}-print.pdf`);}
    await addHistory('Card',`${card} (${files.length} set(s))`);
@@ -153,17 +163,17 @@ function CardStudio({card,addHistory}){
    <FileDrop accept="image/*,application/pdf" multiple onFiles={changeFiles}/>
    {files.some(isPdfFile)&&<label className="pdf-password-field">PDF Password<input type="password" value={pdfPassword} onChange={e=>setPdfPassword(e.target.value)} placeholder="Enter password for protected PDF" autoComplete="off"/><small>Password is used locally in this browser to open the PDF.</small></label>}
    {files.map((f,i)=><div className="file-row" key={i}><FileImage/><div><b>{f.name}</b><small>{(f.size/1024).toFixed(0)} KB · Set {i+1}</small></div><button className="icon-btn" onClick={()=>changeFiles(files.filter((_,j)=>j!==i))}><X size={16}/></button></div>)}
-   <div className="form-grid"><label>Paper size<select value={paper} onChange={e=>setPaper(e.target.value)}><option>A4</option><option>Letter</option><option>Legal</option></select></label><label>Orientation<select value={orientation} onChange={e=>setOrientation(e.target.value)}><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label><label>Margins (mm)<input type="number" min="0" max="30" value={margin} onChange={e=>setMargin(Math.max(0,Math.min(30,+e.target.value||0)))}/></label></div>
+   <div className="form-grid"><label>Paper size<select value={paper} onChange={e=>updateSetting('paper',e.target.value)}><option>A4</option><option>Letter</option><option>Legal</option></select></label><label>Orientation<select value={orientation} onChange={e=>updateSetting('orientation',e.target.value)}><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label><label>Margins (mm)<input type="number" min="0" max="30" value={margin} onChange={e=>updateSetting('margin',Math.max(0,Math.min(30,+e.target.value||0)))}/></label></div>
    <button className="primary" disabled={busy||!files.length} onClick={generate}><Download size={16}/>{busy?'Preparing PDF…':'Download print-ready PDF'}</button>
   </div>
   <div className="panel pad"><h2>Front and Back</h2><p className="muted">Preview of every uploaded file. Front is on the left and Back is on the right.</p>
-   {previewLoading?<div className="preview-empty"><span>Rendering all uploaded files…</span></div>:allPairs.length?<div className="all-card-pairs">{allPairs.map((item,i)=><div className="all-card-pair" key={item.name+'-'+i}><div className="all-card-pair-title">SET {i+1} · {item.name}</div><div className="all-card-pair-sides"><div className="pair-side"><b>FRONT</b>{item.sides[0]?<img src={item.sides[0]} alt={`Set ${i+1} Front`}/>:<span className="blank-side">No front image</span>}</div><div className="pair-side"><b>BACK</b>{item.sides[1]?<img src={item.sides[1]} alt={`Set ${i+1} Back`}/>:<span className="blank-side">Blank back</span>}</div></div></div>)}</div>:<div className="preview-empty"><Image size={42}/><span>Upload files to preview every Front + Back pair</span></div>}
+   {previewLoading?<div className="preview-empty"><span>Rendering all uploaded files…</span></div>:allPairs.length?<div className="all-card-pairs">{allPairs.map((item,i)=><div className="all-card-pair" key={item.name+'-'+i}><div className="all-card-pair-title">SET {i+1} · {item.name}</div><div className="all-card-pair-sides" style={{...layoutCssVars,gridTemplateColumns:'1fr 1fr'}}><div className="pair-side"><b>FRONT</b>{item.sides[0]?<img src={item.sides[0]} alt={`Set ${i+1} Front`}/>:<span className="blank-side">No front image</span>}</div><div className="pair-side"><b>BACK</b>{item.sides[1]?<img src={item.sides[1]} alt={`Set ${i+1} Back`}/>:<span className="blank-side">Blank back</span>}</div></div></div>)}</div>:<div className="preview-empty"><Image size={42}/><span>Upload files to preview every Front + Back pair</span></div>}
    {previewError&&<div className="print-summary">{previewError}</div>}
   </div>
  </div>
  <div className="panel pad card-print-panel"><div className="print-preview-heading"><div><h2>A4 Print Preview</h2><p className="muted">This is how the downloaded PDF will be arranged. Up to {perSheet} Front + Back sets per page.</p></div><div className="print-preview-actions"><button className="primary" disabled={busy||!files.length} onClick={()=>generate('download')}><Download size={15}/>{busy?'Preparing…':'Download PDF'}</button><button className="secondary" disabled={busy||!files.length} onClick={()=>generate('print')}><Printer size={15}/>Print</button></div></div>
   {files.length?<><div className="preview-toolbar"><span>A4 sheet {previewPage+1} of {Math.max(1,previewSheets.length)} · Sets {previewPage*perSheet+1}–{Math.min((previewPage+1)*perSheet,files.length)} of {files.length}</span><div className="page-controls"><button className="icon-btn" disabled={previewPage===0} onClick={()=>setPreviewPage(p=>Math.max(0,p-1))}>‹</button><small>Page {previewPage+1} / {Math.max(1,previewSheets.length)}</small><button className="icon-btn" disabled={previewPage>=previewSheets.length-1} onClick={()=>setPreviewPage(p=>Math.min(previewSheets.length-1,p+1))}>›</button></div></div>
-   <div className="a4-preview-wrap print-sheet-wrap"><div className="a4-preview multi-pair-sheet" style={{aspectRatio:orientation==='landscape'?'297 / 210':'210 / 297',padding:`${margin}mm`,gridTemplateRows:`repeat(${perSheet}, ${cardHeight}mm)`}}>{previewLoading?<span className="preview-status">Rendering print sheet…</span>:currentSheet.map((item,i)=><div className="multi-pair-row" key={item.name+'-'+i}><div className="multi-pair-label">SET {previewPage*5+i+1} · {item.name}</div><div className="multi-pair-sides"><div className="pair-side"><b>FRONT</b>{item.sides[0]?<img src={item.sides[0]} alt="Front side"/>:<span className="blank-side">No front image</span>}</div><div className="pair-side"><b>BACK</b>{item.sides[1]?<img src={item.sides[1]} alt="Back side"/>:<span className="blank-side">Blank back</span>}</div></div></div>)}</div></div>
+   <div className="a4-preview-wrap print-sheet-wrap"><div className="a4-preview multi-pair-sheet" style={{...layoutCssVars,aspectRatio:orientation==='landscape'?'297 / 210':'210 / 297',padding:`${margin}mm`,gridTemplateRows:`repeat(${perSheet}, ${cardHeight}mm)`}}>{previewLoading?<span className="preview-status">Rendering print sheet…</span>:currentSheet.map((item,i)=><div className="multi-pair-row" key={item.name+'-'+i} style={{height:`${cardHeight}mm`,minHeight:`${cardHeight}mm`}}><div className="multi-pair-label">SET {previewPage*5+i+1} · {item.name}</div><div className="multi-pair-sides" style={layoutCssVars}><div className="pair-side"><b>FRONT</b>{item.sides[0]?<img src={item.sides[0]} alt="Front side"/>:<span className="blank-side">No front image</span>}</div><div className="pair-side"><b>BACK</b>{item.sides[1]?<img src={item.sides[1]} alt="Back side"/>:<span className="blank-side">Blank back</span>}</div></div></div>)}</div></div>
    <div className="print-summary">Total: {files.length} uploaded file(s) = {files.length} set(s) · Up to 5 sets per {paper} page</div>
   </>:<div className="preview-empty"><Image size={48}/><span>Your A4 print preview will appear here</span></div>}
  </div></>;
