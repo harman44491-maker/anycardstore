@@ -45,11 +45,13 @@
 
 /* Print preview controls and exact Front/Back spacing */
 .all-card-pair-sides{gap:8px}
-.multi-pair-sides{gap:4px}
+.multi-pair-sides{gap:2mm}
 .print-preview-heading{display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap;margin-bottom:3px}
 .print-preview-heading h2{margin:0 0 5px}
 .print-preview-heading .muted{margin:0}
 .print-preview-actions{display:flex;align-items:center;gap:2px}
 .print-preview-actions button{display:inline-flex;align-items:center;justify-content:center;gap:2px}
-.print-sheet-wrap .a4-preview{padding:5mm!important}
+
 @media(max-width:760px){.all-card-pair-sides{gap:2px}.print-preview-heading{align-items:flex-start}.print-preview-actions{width:100%}}
+
+.pdf-password-field{display:flex;flex-direction:column;gap:7px;margin:14px 0;padding:12px;border:1px solid #dce9e2;border-radius:9px;background:#f7fbf9;font-size:11px;font-weight:700;color:#38554c}.pdf-password-field input{height:39px;border:1px solid #dce6e1;border-radius:8px;padding:0 10px;background:#fff;color:#263c36;font:12px Inter;outline-color:#087e75}.pdf-password-field small{font-size:10px;font-weight:400;color:#87948f}.dark .pdf-password-field{background:#1d302b;border-color:#40564c;color:#e5efeb}.dark .pdf-password-field input{background:#152320;color:#fff;border-color:#40564c}
