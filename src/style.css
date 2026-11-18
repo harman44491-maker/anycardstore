@@ -14,7 +14,7 @@
 .dark .pair-side{background:#1d302b;border-color:#52685e}
 
 /* Multiple uploaded card sets on one A4 sheet */
-.multi-pair-sheet{display:grid;grid-template-rows:repeat(5,49.4mm);gap:10mm;align-content:start;box-sizing:border-box}
+.multi-pair-sheet{display:grid;grid-template-rows:repeat(5,49.4mm);gap:2mm;align-content:start;box-sizing:border-box}
 .multi-pair-row{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;height:49.4mm;min-height:49.4mm;overflow:hidden;border:0;padding:0;gap:0}
 .multi-pair-label{display:none}
 .multi-pair-sides{display:grid;grid-template-columns:87mm 87mm;gap:2mm;width:176mm;height:49.4mm;min-height:49.4mm;flex:none;justify-content:center}
@@ -28,7 +28,7 @@
 /* Card Studio: all source previews above the full-width print sheet */
 .card-top-layout{align-items:start}
 .card-top-layout>.panel{min-width:0}
-.all-card-pairs{display:grid;grid-template-columns:1fr;gap:4mm;max-height:720px;overflow:auto;padding-right:4px}
+.all-card-pairs{display:grid;grid-template-columns:1fr;gap:2mm;max-height:720px;overflow:auto;padding-right:4px}
 .all-card-pair{border:1px solid #e0e9e4;border-radius:9px;padding:8px;min-width:0}
 .all-card-pair-title{font-size:10px;font-weight:700;color:#52665e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px}
 .all-card-pair-sides{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:135px}
@@ -46,10 +46,10 @@
 /* Print preview controls and exact Front/Back spacing */
 .all-card-pair-sides{gap:8px}
 .multi-pair-sides{gap:4px}
-.print-preview-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.print-preview-heading{display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap;margin-bottom:3px}
 .print-preview-heading h2{margin:0 0 5px}
 .print-preview-heading .muted{margin:0}
-.print-preview-actions{display:flex;align-items:center;gap:8px}
-.print-preview-actions button{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.print-preview-actions{display:flex;align-items:center;gap:2px}
+.print-preview-actions button{display:inline-flex;align-items:center;justify-content:center;gap:2px}
 .print-sheet-wrap .a4-preview{padding:5mm!important}
-@media(max-width:760px){.all-card-pair-sides{gap:8px}.print-preview-heading{align-items:flex-start}.print-preview-actions{width:100%}}
+@media(max-width:760px){.all-card-pair-sides{gap:2px}.print-preview-heading{align-items:flex-start}.print-preview-actions{width:100%}}
