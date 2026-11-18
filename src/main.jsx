@@ -87,7 +87,7 @@ function CardStudio({card,addHistory}){
   try{
    const pdf=new jsPDF({orientation,unit:'mm',format:paper.toLowerCase()});
    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
-   const printMargin=Math.min(margin,5),gap=2,rowGap=1,sideW=87,sideH=56;
+   const printMargin=5,gap=2,rowGap=10,sideW=87,sideH=49.4;
    for(let i=0;i<files.length;i++){
     if(i>0&&i%perSheet===0)pdf.addPage();
     const file=files[i];let front=null,back=null;
