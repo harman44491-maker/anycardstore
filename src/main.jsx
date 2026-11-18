@@ -87,7 +87,7 @@ function CardStudio({card,addHistory}){
   try{
    const pdf=new jsPDF({orientation,unit:'mm',format:paper.toLowerCase()});
    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
-   const gap=4,rowGap=20,sideW=(pw-2*margin-gap)/2,rowH=(ph-2*margin-4*rowGap)/5;
+   const printMargin=Math.min(margin,5),gap=2,rowGap=1,sideW=87,sideH=56;
    for(let i=0;i<files.length;i++){
     if(i>0&&i%perSheet===0)pdf.addPage();
     const file=files[i];let front=null,back=null;
@@ -98,9 +98,9 @@ function CardStudio({card,addHistory}){
      const data=await readData(file),props=pdf.getImageProperties(data);
      front={data,width:props.width,height:props.height};
     }
-    const row=i%perSheet,y=margin+row*(rowH+rowGap),sideH=rowH;
-    addSide(pdf,front,margin,y,sideW,sideH);
-    addSide(pdf,back,margin+sideW+gap,y,sideW,sideH);
+    const row=i%perSheet,y=printMargin+row*(sideH+rowGap),pairW=sideW*2+gap,x=(pw-pairW)/2;
+    addSide(pdf,front,x,y,sideW,sideH);
+    addSide(pdf,back,x+sideW+gap,y,sideW,sideH);
    }
    if(action==='print'){const blob=pdf.output('blob');const url=URL.createObjectURL(blob);const win=window.open(url,'_blank');if(!win)alert('Please allow pop-ups to print the PDF.');else win.addEventListener('load',()=>win.print(),{once:true});}else{pdf.save(`${card.toLowerCase().replaceAll(' ','-')}-print.pdf`);}
    await addHistory('Card',`${card} (${files.length} set(s))`);
