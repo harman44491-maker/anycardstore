@@ -163,7 +163,7 @@ function Dashboard({ wallet, history, setPage }) {
       <div className="section-head"><h2>Quick Services</h2></div>
       <div className="service-grid">
         <Service icon={<CreditCard />} title="Card Printing" desc="Choose a card template and prepare print-ready files." onClick={() => setPage('Cards')} />
-        <Service icon={<Camera />} title="Passport Photo" desc="Single or multiple photos with print sheet preview." onClick={() => setPage('Passport Photo')} />
+        <Service icon={<Camera />} title="Passport Photo" desc="Single or multiple photos with print sheet preview." onClick={() => setPassportPhotoPage(setPage)} />
         <Service icon={<FileText />} title="Document Converter" desc="Convert images to PDF or PDF pages to images." onClick={() => setPage('Document Converter')} />
       </div>
       <div className="panel history-panel"><div className="panel-head"><h2>Recent Work</h2><button className="text-btn" onClick={() => setPage('Work History')}>View all</button></div><HistoryTable history={history.slice(0, 5)} /></div>
@@ -193,16 +193,7 @@ function Cards({ query, setQuery, onSelect }) {
 
 function isPdfFile(file) { return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || ''); }
 
-function enhanceCardText(sourceCanvas) {
-  const enhanced = document.createElement('canvas');
-  enhanced.width = sourceCanvas.width;
-  enhanced.height = sourceCanvas.height;
-  const ctx = enhanced.getContext('2d');
-  ctx.filter = 'contrast(130%) brightness(98%)';
-  ctx.drawImage(sourceCanvas, 0, 0);
-  return enhanced;
-}
-
+// Robust PDF rendering function for Aadhaar & other cards
 async function renderPdfSides(doc, scale, splitSinglePage) {
   const renderPage = async (pageNo) => {
     const page = await doc.getPage(pageNo), viewport = page.getViewport({ scale });
@@ -217,7 +208,7 @@ async function renderPdfSides(doc, scale, splitSinglePage) {
   
   const pageCanvas = await renderPage(1);
   const pageRatio = pageCanvas.width / pageCanvas.height;
-  if (!splitSinglePage && pageRatio < 2) return [toSide(enhanceCardText(pageCanvas)), null];
+  if (!splitSinglePage && pageRatio < 2) return [toSide(pageCanvas), null];
   
   const halfH = Math.floor(pageCanvas.height / 2);
   const crop = (sy, h) => {
@@ -225,7 +216,7 @@ async function renderPdfSides(doc, scale, splitSinglePage) {
     canvas.width = pageCanvas.width;
     canvas.height = h;
     canvas.getContext('2d').drawImage(pageCanvas, 0, sy, pageCanvas.width, h, 0, 0, pageCanvas.width, h);
-    return enhanceCardText(canvas);
+    return canvas;
   };
 
   return [
@@ -234,7 +225,7 @@ async function renderPdfSides(doc, scale, splitSinglePage) {
   ];
 }
 
-// SMART AADHAAR IMAGE CROPPER & ENHANCER FOR FULL LETTER UPLOADS
+// SMART AADHAAR IMAGE CROPPER: Niche wale card ko accurately crop karne ke liye
 function processAadhaarImage(dataUrl) {
   return new Promise((resolve) => {
     const img = new window.Image();
@@ -243,13 +234,12 @@ function processAadhaarImage(dataUrl) {
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
-      ctx.filter = 'contrast(130%) brightness(98%)';
       ctx.drawImage(img, 0, 0);
 
       const ratio = img.height / img.width;
-      // Agar poora letter upload kiya hai (height jyada hai) toh niche wale card area ko crop karo
-      if (ratio > 1.2) {
-        const cardAreaY = Math.floor(img.height * 0.52);
+      if (ratio > 1.1) {
+        // Poore letter mein se niche ka card area select kiya gaya hai
+        const cardAreaY = Math.floor(img.height * 0.48);
         const cardAreaH = img.height - cardAreaY;
         const halfW = Math.floor(img.width / 2);
 
@@ -259,7 +249,7 @@ function processAadhaarImage(dataUrl) {
           sc.height = cardAreaH;
           const sctx = sc.getContext('2d');
           sctx.drawImage(canvas, sx, cardAreaY, sw, cardAreaH, 0, 0, sw, cardAreaH);
-          return sc.toDataURL('image/png');
+          return { data: sc.toDataURL('image/png'), width: sc.width, height: sc.height };
         };
 
         resolve([makeSide(0, halfW), makeSide(halfW, img.width - halfW)]);
@@ -268,7 +258,7 @@ function processAadhaarImage(dataUrl) {
         sc.width = img.width;
         sc.height = img.height;
         sc.getContext('2d').drawImage(canvas, 0, 0);
-        resolve([sc.toDataURL('image/png'), '']);
+        resolve([{ data: sc.toDataURL('image/png'), width: sc.width, height: sc.height }, null]);
       }
     };
     img.src = dataUrl;
@@ -276,9 +266,9 @@ function processAadhaarImage(dataUrl) {
 }
 
 const CARD_STUDIO_LAYOUTS = {
-  aadhaar: { width: 101, height: 63, gap: 2, rowGap: 2, margin: 3, borderSideInset: 2, borderBottomInset: 2, previewScale: 14, printScale: 20, splitSinglePage: true },
-  ayushman: { width: 87, height: 54, gap: 3, rowGap: 2, margin: 5, borderSideInset: 0, borderBottomInset: 0, previewScale: 2.2, printScale: 3.2, splitSinglePage: false },
-  default: { width: 87, height: 54, gap: 3, rowGap: 2, margin: 5, borderSideInset: 0, borderBottomInset: 0, previewScale: 2.2, printScale: 3.2, splitSinglePage: false }
+  aadhaar: { width: 101, height: 63, gap: 2, rowGap: 2, margin: 3, borderSideInset: 2, borderBottomInset: 2, previewScale: 4, printScale: 6, splitSinglePage: true },
+  ayushman: { width: 87, height: 54, gap: 3, rowGap: 2, margin: 5, borderSideInset: 0, borderBottomInset: 0, previewScale: 3, printScale: 5, splitSinglePage: false },
+  default: { width: 87, height: 54, gap: 3, rowGap: 2, margin: 5, borderSideInset: 0, borderBottomInset: 0, previewScale: 3, printScale: 5, splitSinglePage: false }
 };
 
 function CardStudio({ card, addHistory }) {
@@ -326,7 +316,8 @@ function CardStudio({ card, addHistory }) {
             if (!sides[1]) setPreviewError(prev => prev || file.name + ' has one page; the Back side is blank.');
           } else {
             const rawImg = await readData(file);
-            sides = card.toLowerCase() === 'aadhaar' ? await processAadhaarImage(rawImg) : [await processAadhaarImage(rawImg).then(s => s[0]), ''];
+            const processedSides = await processAadhaarImage(rawImg);
+            sides = [processedSides[0]?.data || '', processedSides[1]?.data || ''];
           }
           pairs.push({ name: file.name, sides });
         }
@@ -346,9 +337,9 @@ function CardStudio({ card, addHistory }) {
   const changeFiles = next => { setFiles(next); setPreviewPage(0); };
 
   const addSide = (pdf, side, x, y, w, h) => {
-    if (!side) return;
+    if (!side || !side.data) return;
     const ratio = Math.min(w / side.width, h / side.height), drawW = side.width * ratio, drawH = side.height * ratio;
-    pdf.addImage(side.data, side.data.startsWith('data:image/png') ? 'PNG' : 'JPEG', x + (w - drawW) / 2, y + (h - drawH) / 2, drawW, drawH, undefined, 'FAST');
+    pdf.addImage(side.data, 'PNG', x + (w - drawW) / 2, y + (h - drawH) / 2, drawW, drawH, undefined, 'FAST');
   };
 
   const generate = async (action = 'download') => {
@@ -363,19 +354,13 @@ function CardStudio({ card, addHistory }) {
         const file = files[i]; let front = null, back = null;
         if (isPdfFile(file)) {
           const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), password: pdfPassword || undefined }).promise;
-          [front, back] = await renderPdfSides(doc, printScale, splitSinglePage);
+          const [fSide, bSide] = await renderPdfSides(doc, printScale, splitSinglePage);
+          front = fSide; back = bSide;
         } else {
           const rawImg = await readData(file);
-          const sidesArr = card.toLowerCase() === 'aadhaar' ? await processAadhaarImage(rawImg) : [await processAadhaarImage(rawImg).then(s => s[0]), null];
-          const fData = sidesArr[0], bData = sidesArr[1];
-          if (fData) {
-            const props = pdf.getImageProperties(fData);
-            front = { data: fData, width: props.width, height: props.height };
-          }
-          if (bData) {
-            const props = pdf.getImageProperties(bData);
-            back = { data: bData, width: props.width, height: props.height };
-          }
+          const processedSides = await processAadhaarImage(rawImg);
+          front = processedSides[0];
+          back = processedSides[1];
         }
         const row = i % perSheet, y = printMargin + row * (sideH + rowGap), pairW = sideW * 2 + gap, x = (pw - pairW) / 2;
         addSide(pdf, front, x, y, sideW, sideH);
