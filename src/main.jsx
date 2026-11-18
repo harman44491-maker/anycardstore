@@ -59,7 +59,25 @@ async function renderPdfSides(doc,scale,splitSinglePage){
   canvas.getContext('2d').drawImage(source,sx,sourceY,width,sourceHeight,0,0,width,sourceHeight);
   return canvas;
  };
- return [toSide(crop(0,leftWidth)),toSide(crop(leftWidth,rightWidth))];
+ const trimCard=canvas=>{
+  const context=canvas.getContext('2d'),pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
+  let left=canvas.width,top=canvas.height,right=-1,bottom=-1;
+  const skipTop=Math.floor(canvas.height*.06);
+  for(let y=skipTop;y<canvas.height;y++)for(let x=0;x<canvas.width;x++){
+   const i=(y*canvas.width+x)*4;
+   if(pixels[i+3]>24&&(pixels[i]<245||pixels[i+1]<245||pixels[i+2]<245)){
+    if(x<left)left=x;if(x>right)right=x;if(y<top)top=y;if(y>bottom)bottom=y;
+   }
+  }
+  if(right<left||bottom<top)return canvas;
+  const pad=Math.max(2,Math.ceil(Math.min(canvas.width,canvas.height)*.01));
+  const x=Math.max(0,left-pad),y=Math.max(0,top-pad);
+  const width=Math.min(canvas.width-x,right-left+1+pad*2),height=Math.min(canvas.height-y,bottom-top+1+pad*2);
+  const trimmed=document.createElement('canvas');trimmed.width=width;trimmed.height=height;
+  trimmed.getContext('2d').drawImage(canvas,x,y,width,height,0,0,width,height);
+  return trimmed;
+ };
+ return [toSide(trimCard(crop(0,leftWidth))),toSide(trimCard(crop(leftWidth,rightWidth)))];
 }
 function CardStudio({card,addHistory}){
  const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(6),[busy,setBusy]=useState(false),[pdfPassword,setPdfPassword]=useState('');
