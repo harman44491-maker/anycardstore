@@ -198,7 +198,7 @@ function enhanceCardText(sourceCanvas) {
   enhanced.width = sourceCanvas.width;
   enhanced.height = sourceCanvas.height;
   const ctx = enhanced.getContext('2d');
-  ctx.filter = 'contrast(135%) brightness(97%)';
+  ctx.filter = 'contrast(130%) brightness(98%)';
   ctx.drawImage(sourceCanvas, 0, 0);
   return enhanced;
 }
@@ -210,56 +210,75 @@ async function renderPdfSides(doc, scale, splitSinglePage) {
     canvas.width = Math.ceil(viewport.width);
     canvas.height = Math.ceil(viewport.height);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    return enhanceCardText(canvas);
+    return canvas;
   };
   const toSide = (canvas) => ({ data: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height });
   if (doc.numPages >= 2) return [toSide(await renderPage(1)), toSide(await renderPage(2))];
+  
   const pageCanvas = await renderPage(1);
   const pageRatio = pageCanvas.width / pageCanvas.height;
-  if (!splitSinglePage && pageRatio < 2) return [toSide(pageCanvas), null];
-  let source = pageCanvas, sourceY = 0, sourceHeight = pageCanvas.height;
-  if (splitSinglePage && pageRatio < 2) {
-    sourceY = Math.floor(pageCanvas.height * .72);
-    sourceHeight = pageCanvas.height - sourceY;
-  }
-  const leftWidth = Math.floor(pageCanvas.width / 2), rightWidth = pageCanvas.width - leftWidth;
-  const crop = (sx, width) => {
+  if (!splitSinglePage && pageRatio < 2) return [toSide(enhanceCardText(pageCanvas)), null];
+  
+  const halfH = Math.floor(pageCanvas.height / 2);
+  const crop = (sy, h) => {
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = sourceHeight;
-    canvas.getContext('2d').drawImage(source, sx, sourceY, width, sourceHeight, 0, 0, width, sourceHeight);
-    return canvas;
+    canvas.width = pageCanvas.width;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(pageCanvas, 0, sy, pageCanvas.width, h, 0, 0, pageCanvas.width, h);
+    return enhanceCardText(canvas);
   };
-  const trimCard = canvas => {
-    const context = canvas.getContext('2d'), pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    let left = canvas.width, top = canvas.height, right = -1, bottom = -1;
-    const skipTop = Math.floor(canvas.height * .06);
-    for (let y = skipTop; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
-      const i = (y * canvas.width + x) * 4;
-      if (pixels[i + 3] > 24 && (pixels[i] < 245 || pixels[i + 1] < 245 || pixels[i + 2] < 245)) {
-        if (x < left) left = x;
-        if (x > right) right = x;
-        if (y < top) top = y;
-        if (y > bottom) bottom = y;
+
+  return [
+    toSide(crop(0, halfH)),
+    toSide(crop(halfH, pageCanvas.height - halfH))
+  ];
+}
+
+// SMART AADHAAR IMAGE CROPPER & ENHANCER FOR FULL LETTER UPLOADS
+function processAadhaarImage(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.filter = 'contrast(130%) brightness(98%)';
+      ctx.drawImage(img, 0, 0);
+
+      const ratio = img.height / img.width;
+      // Agar poora letter upload kiya hai (height jyada hai) toh niche wale card area ko crop karo
+      if (ratio > 1.2) {
+        const cardAreaY = Math.floor(img.height * 0.52);
+        const cardAreaH = img.height - cardAreaY;
+        const halfW = Math.floor(img.width / 2);
+
+        const makeSide = (sx, sw) => {
+          const sc = document.createElement('canvas');
+          sc.width = sw;
+          sc.height = cardAreaH;
+          const sctx = sc.getContext('2d');
+          sctx.drawImage(canvas, sx, cardAreaY, sw, cardAreaH, 0, 0, sw, cardAreaH);
+          return sc.toDataURL('image/png');
+        };
+
+        resolve([makeSide(0, halfW), makeSide(halfW, img.width - halfW)]);
+      } else {
+        const sc = document.createElement('canvas');
+        sc.width = img.width;
+        sc.height = img.height;
+        sc.getContext('2d').drawImage(canvas, 0, 0);
+        resolve([sc.toDataURL('image/png'), '']);
       }
-    }
-    if (right < left || bottom < top) return canvas;
-    const pad = 1;
-    const x = Math.max(0, left - pad), y = Math.max(0, top - pad);
-    const width = Math.min(canvas.width - x, right - left + 1 + pad * 2), height = Math.min(canvas.height - y, bottom - top + 1 + pad * 2);
-    const trimmed = document.createElement('canvas');
-    trimmed.width = width;
-    trimmed.height = height;
-    trimmed.getContext('2d').drawImage(canvas, x, y, width, height, 0, 0, width, height);
-    return trimmed;
-  };
-  return [toSide(trimCard(crop(0, leftWidth))), toSide(trimCard(crop(leftWidth, rightWidth)))];
+    };
+    img.src = dataUrl;
+  });
 }
 
 const CARD_STUDIO_LAYOUTS = {
-  aadhaar: { width: 101, height: 60, gap: 2, rowGap: 1.5, margin: 3, borderSideInset: 2, borderBottomInset: 2, previewScale: 14, printScale: 20, splitSinglePage: true },
-  ayushman: { width: 87, height: 52, gap: 3, rowGap: 1.5, margin: 5, borderSideInset: 0, borderBottomInset: 0, previewScale: 2.2, printScale: 3.2, splitSinglePage: false },
-  default: { width: 87, height: 52, gap: 3, rowGap: 1.5, margin: 5, borderSideInset: 0, borderBottomInset: 0, previewScale: 2.2, printScale: 3.2, splitSinglePage: false }
+  aadhaar: { width: 101, height: 63, gap: 2, rowGap: 2, margin: 3, borderSideInset: 2, borderBottomInset: 2, previewScale: 14, printScale: 20, splitSinglePage: true },
+  ayushman: { width: 87, height: 54, gap: 3, rowGap: 2, margin: 5, borderSideInset: 0, borderBottomInset: 0, previewScale: 2.2, printScale: 3.2, splitSinglePage: false },
+  default: { width: 87, height: 54, gap: 3, rowGap: 2, margin: 5, borderSideInset: 0, borderBottomInset: 0, previewScale: 2.2, printScale: 3.2, splitSinglePage: false }
 };
 
 function CardStudio({ card, addHistory }) {
@@ -307,7 +326,7 @@ function CardStudio({ card, addHistory }) {
             if (!sides[1]) setPreviewError(prev => prev || file.name + ' has one page; the Back side is blank.');
           } else {
             const rawImg = await readData(file);
-            sides = [await enhanceImageUrl(rawImg), ''];
+            sides = card.toLowerCase() === 'aadhaar' ? await processAadhaarImage(rawImg) : [await processAadhaarImage(rawImg).then(s => s[0]), ''];
           }
           pairs.push({ name: file.name, sides });
         }
@@ -346,8 +365,17 @@ function CardStudio({ card, addHistory }) {
           const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), password: pdfPassword || undefined }).promise;
           [front, back] = await renderPdfSides(doc, printScale, splitSinglePage);
         } else {
-          const data = await enhanceImageUrl(await readData(file)), props = pdf.getImageProperties(data);
-          front = { data, width: props.width, height: props.height };
+          const rawImg = await readData(file);
+          const sidesArr = card.toLowerCase() === 'aadhaar' ? await processAadhaarImage(rawImg) : [await processAadhaarImage(rawImg).then(s => s[0]), null];
+          const fData = sidesArr[0], bData = sidesArr[1];
+          if (fData) {
+            const props = pdf.getImageProperties(fData);
+            front = { data: fData, width: props.width, height: props.height };
+          }
+          if (bData) {
+            const props = pdf.getImageProperties(bData);
+            back = { data: bData, width: props.width, height: props.height };
+          }
         }
         const row = i % perSheet, y = printMargin + row * (sideH + rowGap), pairW = sideW * 2 + gap, x = (pw - pairW) / 2;
         addSide(pdf, front, x, y, sideW, sideH);
@@ -463,22 +491,6 @@ function CardStudio({ card, addHistory }) {
       </div>
     </>
   );
-}
-
-function enhanceImageUrl(dataUrl) {
-  return new Promise((resolve) => {
-    const img = new window.Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = img.width;
-      c.height = img.height;
-      const ctx = c.getContext('2d');
-      ctx.filter = 'contrast(135%) brightness(97%)';
-      ctx.drawImage(img, 0, 0);
-      resolve(c.toDataURL('image/png'));
-    };
-    img.src = dataUrl;
-  });
 }
 
 function PassportStudio({ addHistory }) {
