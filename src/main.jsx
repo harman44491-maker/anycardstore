@@ -138,7 +138,7 @@ function CardStudio({card,addHistory}){
     addSide(pdf,front,x,y,sideW,sideH);
     addSide(pdf,back,x+sideW+gap,y,sideW,sideH);
     pdf.setDrawColor(0,0,0);pdf.setLineWidth(.25);
-    pdf.rect(x,y,sideW,sideH);pdf.rect(x+sideW+gap,y,sideW,sideH);
+    pdf.rect(x, y, sideW, sideH - 1);pdf.rect(x + sideW + gap, y, sideW, sideH - 1);
    }
    if(action==='print'){const blob=pdf.output('blob');const url=URL.createObjectURL(blob);const win=window.open(url,'_blank');if(!win)alert('Please allow pop-ups to print the PDF.');else win.addEventListener('load',()=>win.print(),{once:true});}else{pdf.save(`${card.toLowerCase().replaceAll(' ','-')}-print.pdf`);}
    await addHistory('Card',`${card} (${files.length} set(s))`);
