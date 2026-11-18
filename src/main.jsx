@@ -80,7 +80,7 @@ async function renderPdfSides(doc,scale,splitSinglePage){
  return [toSide(trimCard(crop(0,leftWidth))),toSide(trimCard(crop(leftWidth,rightWidth)))];
 }
 const CARD_STUDIO_LAYOUTS={
- aadhaar:{width:97,height:62.5,gap:2,rowGap:2,margin:6,borderSideInset:2,borderBottomInset:2,previewScale:14,printScale:20,splitSinglePage:true},
+ aadhaar:{width:101,height:65.1,gap:2,rowGap:2,margin:3,borderSideInset:2,borderBottomInset:2,previewScale:14,printScale:20,splitSinglePage:true},
  ayushman:{width:87,height:54,gap:3,rowGap:2,margin:5,borderSideInset:0,borderBottomInset:0,previewScale:2.2,printScale:3.2,splitSinglePage:false},
  default:{width:87,height:54,gap:3,rowGap:2,margin:5,borderSideInset:0,borderBottomInset:0,previewScale:2.2,printScale:3.2,splitSinglePage:false}
 };
