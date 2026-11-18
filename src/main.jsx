@@ -48,23 +48,18 @@ async function renderPdfSides(doc,scale,quality,splitSinglePage){
  const pageCanvas=await renderPage(1);
  const pageRatio=pageCanvas.width/pageCanvas.height;
  if(!splitSinglePage&&pageRatio<2)return [toSide(pageCanvas),null];
+ let source=pageCanvas,sourceY=0,sourceHeight=pageCanvas.height;
+ if(splitSinglePage&&pageRatio<2){
+  sourceY=Math.floor(pageCanvas.height*.74);
+  sourceHeight=pageCanvas.height-sourceY;
+ }
  const leftWidth=Math.floor(pageCanvas.width/2),rightWidth=pageCanvas.width-leftWidth;
  const crop=(sx,width)=>{
-  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=pageCanvas.height;
-  canvas.getContext('2d').drawImage(pageCanvas,sx,0,width,pageCanvas.height,0,0,width,pageCanvas.height);
+  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=sourceHeight;
+  canvas.getContext('2d').drawImage(source,sx,sourceY,width,sourceHeight,0,0,width,sourceHeight);
   return canvas;
  };
- const left=crop(0,leftWidth),right=crop(leftWidth,rightWidth);
- if(pageRatio<2){
-  const rotate=canvas=>{
-   const rotated=document.createElement('canvas');rotated.width=canvas.height;rotated.height=canvas.width;
-   const context=rotated.getContext('2d');context.translate(rotated.width,0);context.rotate(Math.PI/2);
-   context.drawImage(canvas,0,0);
-   return rotated;
-  };
-  return [toSide(rotate(left)),toSide(rotate(right))];
- }
- return [toSide(left),toSide(right)];
+ return [toSide(crop(0,leftWidth)),toSide(crop(leftWidth,rightWidth))];
 }
 function CardStudio({card,addHistory}){
  const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(5),[busy,setBusy]=useState(false),[pdfPassword,setPdfPassword]=useState('');
