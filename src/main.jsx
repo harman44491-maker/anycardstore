@@ -35,6 +35,7 @@ function Dashboard({wallet,history,setPage}){return <><PageTitle icon={<Home/>} 
 function Stat({icon,label,value,tone}){return <div className={`stat ${tone}`}><div><span>{label}</span><strong>{value}</strong></div><div className="stat-icon">{icon}</div></div>}
 function Service({icon,title,desc,onClick}){return <button className="service-card" onClick={onClick}><div className="service-icon">{icon}</div><h3>{title}</h3><p>{desc}</p><span className="service-link">Open service →</span></button>}
 function Cards({query,setQuery,onSelect}){const filtered=cards.filter(c=>c.name.toLowerCase().includes(query.toLowerCase()));return <><PageTitle icon={<CreditCard/>} title="Punjab Card Services" subtitle="Search and select a card template to start."/><div className="search-box"><Search/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search card by name…"/></div><div className="card-grid">{filtered.map(c=><button className="template-card" key={c.slug} onClick={()=>onSelect(c)}><div className="template-logo"><CreditCard/></div><h3>{c.name}</h3><p>Card printing template</p><span className="template-open">Open editor →</span></button>)}</div>{!filtered.length&&<div className="empty">No matching card templates found.</div>}</>}
+function isPdfFile(file){return file.type==='application/pdf'||/\.pdf$/i.test(file.name||'');}
 function CardStudio({card,addHistory}){
  const [files,setFiles]=useState([]),[paper,setPaper]=useState('A4'),[orientation,setOrientation]=useState('portrait'),[margin,setMargin]=useState(5),[busy,setBusy]=useState(false),[pdfPassword,setPdfPassword]=useState('');
  const [previewSheets,setPreviewSheets]=useState([]),[previewPage,setPreviewPage]=useState(0),[previewLoading,setPreviewLoading]=useState(false),[previewError,setPreviewError]=useState('');
@@ -49,7 +50,7 @@ function CardStudio({card,addHistory}){
     const pairs=[];
     for(const file of files){
      let sides=[];
-     if(file.type==='application/pdf'){
+     if(isPdfFile(file)){
       const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),password:pdfPassword||undefined}).promise;
       for(let n=1;n<=Math.min(2,doc.numPages);n++){
        const page=await doc.getPage(n),vp=page.getViewport({scale:1.2});
@@ -91,7 +92,7 @@ function CardStudio({card,addHistory}){
    for(let i=0;i<files.length;i++){
     if(i>0&&i%perSheet===0)pdf.addPage();
     const file=files[i];let front=null,back=null;
-    if(file.type==='application/pdf'){
+    if(isPdfFile(file)){
      const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),password:pdfPassword||undefined}).promise;
      front=await renderPdfSide(doc,1);back=await renderPdfSide(doc,2);
     }else{
@@ -113,7 +114,7 @@ function CardStudio({card,addHistory}){
  <div className="editor-layout card-top-layout">
   <div className="panel pad"><h2>Upload card files</h2><p className="muted">Each PDF should contain two pages: Page 1 = Front and Page 2 = Back. Up to five uploaded files are arranged on each A4 sheet.</p>
    <FileDrop accept="image/*,application/pdf" multiple onFiles={changeFiles}/>
-   {files.some(f=>f.type==='application/pdf')&&<label className="pdf-password-field">PDF Password<input type="password" value={pdfPassword} onChange={e=>setPdfPassword(e.target.value)} placeholder="Enter password for protected PDF" autoComplete="off"/><small>Password is used locally in this browser to open the PDF.</small></label>}
+   {files.some(isPdfFile)&&<label className="pdf-password-field">PDF Password<input type="password" value={pdfPassword} onChange={e=>setPdfPassword(e.target.value)} placeholder="Enter password for protected PDF" autoComplete="off"/><small>Password is used locally in this browser to open the PDF.</small></label>}
    {files.map((f,i)=><div className="file-row" key={i}><FileImage/><div><b>{f.name}</b><small>{(f.size/1024).toFixed(0)} KB · Set {i+1}</small></div><button className="icon-btn" onClick={()=>changeFiles(files.filter((_,j)=>j!==i))}><X size={16}/></button></div>)}
    <div className="form-grid"><label>Paper size<select value={paper} onChange={e=>setPaper(e.target.value)}><option>A4</option><option>Letter</option><option>Legal</option></select></label><label>Orientation<select value={orientation} onChange={e=>setOrientation(e.target.value)}><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label><label>Margins (mm)<input type="number" min="0" max="30" value={margin} onChange={e=>setMargin(Math.max(0,Math.min(30,+e.target.value||0)))}/></label></div>
    <button className="primary" disabled={busy||!files.length} onClick={generate}><Download size={16}/>{busy?'Preparing PDF…':'Download print-ready PDF'}</button>
