@@ -36,14 +36,14 @@ function Stat({icon,label,value,tone}){return <div className={`stat ${tone}`}><d
 function Service({icon,title,desc,onClick}){return <button className="service-card" onClick={onClick}><div className="service-icon">{icon}</div><h3>{title}</h3><p>{desc}</p><span className="service-link">Open service →</span></button>}
 function Cards({query,setQuery,onSelect}){const filtered=cards.filter(c=>c.name.toLowerCase().includes(query.toLowerCase()));return <><PageTitle icon={<CreditCard/>} title="Punjab Card Services" subtitle="Search and select a card template to start."/><div className="search-box"><Search/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search card by name…"/></div><div className="card-grid">{filtered.map(c=><button className="template-card" key={c.slug} onClick={()=>onSelect(c)}><div className="template-logo"><CreditCard/></div><h3>{c.name}</h3><p>Card printing template</p><span className="template-open">Open editor →</span></button>)}</div>{!filtered.length&&<div className="empty">No matching card templates found.</div>}</>}
 function isPdfFile(file){return file.type==='application/pdf'||/\.pdf$/i.test(file.name||'');}
-async function renderPdfSides(doc,scale,quality,splitSinglePage){
+async function renderPdfSides(doc,scale,splitSinglePage){
  const renderPage=async(pageNo)=>{
   const page=await doc.getPage(pageNo),viewport=page.getViewport({scale});
   const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
   await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
   return canvas;
  };
- const toSide=(canvas)=>({data:canvas.toDataURL('image/jpeg',quality),width:canvas.width,height:canvas.height});
+ const toSide=(canvas)=>({data:canvas.toDataURL('image/png'),width:canvas.width,height:canvas.height});
  if(doc.numPages>=2)return [toSide(await renderPage(1)),toSide(await renderPage(2))];
  const pageCanvas=await renderPage(1);
  const pageRatio=pageCanvas.width/pageCanvas.height;
@@ -77,7 +77,7 @@ function CardStudio({card,addHistory}){
      let sides=[];
      if(isPdfFile(file)){
       const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),password:pdfPassword||undefined}).promise;
-      const renderedSides=await renderPdfSides(doc,1.2,.9,card.toLowerCase()==='aadhaar');
+      const renderedSides=await renderPdfSides(doc,2.2,card.toLowerCase()==='aadhaar');
       sides=renderedSides.map(side=>side?.data||'');
       if(!sides[1])setPreviewError(prev=>prev||file.name+' has one page; the Back side is blank.');
      }else sides=[await readData(file),''];
@@ -94,7 +94,7 @@ function CardStudio({card,addHistory}){
  const addSide=(pdf,side,x,y,w,h)=>{
   if(!side)return;
   const ratio=Math.min(w/side.width,h/side.height),drawW=side.width*ratio,drawH=side.height*ratio;
-  pdf.addImage(side.data,'JPEG',x+(w-drawW)/2,y+(h-drawH)/2,drawW,drawH,undefined,'FAST');
+  pdf.addImage(side.data,side.data.startsWith('data:image/png')?'PNG':'JPEG',x+(w-drawW)/2,y+(h-drawH)/2,drawW,drawH,undefined,'FAST');
  };
  const generate=async(action='download')=>{
   if(!files.length)return alert('Please select at least one image or PDF file.');
@@ -108,7 +108,7 @@ function CardStudio({card,addHistory}){
     const file=files[i];let front=null,back=null;
     if(isPdfFile(file)){
      const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),password:pdfPassword||undefined}).promise;
-     [front,back]=await renderPdfSides(doc,2,.94,card.toLowerCase()==='aadhaar');
+     [front,back]=await renderPdfSides(doc,3.2,card.toLowerCase()==='aadhaar');
     }else{
      const data=await readData(file),props=pdf.getImageProperties(data);
      front={data,width:props.width,height:props.height};
