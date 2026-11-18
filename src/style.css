@@ -44,8 +44,8 @@
 .dark .all-card-pair-title{color:#b4c4bd}
 
 /* Print preview controls and exact Front/Back spacing */
-.all-card-pair-sides{gap:8px}
-.multi-pair-sides{gap:2mm}
+.all-card-pair-sides{gap:3mm}
+.multi-pair-sides{gap:3mm}
 .print-preview-heading{display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap;margin-bottom:3px}
 .print-preview-heading h2{margin:0 0 5px}
 .print-preview-heading .muted{margin:0}
