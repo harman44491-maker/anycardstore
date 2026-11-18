@@ -50,7 +50,7 @@ async function renderPdfSides(doc,scale,splitSinglePage){
  if(!splitSinglePage&&pageRatio<2)return [toSide(pageCanvas),null];
  let source=pageCanvas,sourceY=0,sourceHeight=pageCanvas.height;
  if(splitSinglePage&&pageRatio<2){
-  sourceY=Math.floor(pageCanvas.height*.74);
+  sourceY=Math.floor(pageCanvas.height*.72);
   sourceHeight=pageCanvas.height-sourceY;
  }
  const leftWidth=Math.floor(pageCanvas.width/2),rightWidth=pageCanvas.width-leftWidth;
