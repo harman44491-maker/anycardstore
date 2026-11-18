@@ -528,3 +528,139 @@ function PassportStudio({ addHistory }) {
       await addHistory('Passport Photo', `${n} photo(s) – ${size} sheet`);
     } catch (e) {
       alert('Photo sheet error: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <PageTitle icon={<Camera />} title="Passport Size Photo" subtitle="Create passport photo sheets for printing." />
+      <div className="info-banner"><b>Photo information</b><span>For best results, upload a clear, front-facing photo. Standard passport photo crop is approximately 35 × 45 mm; confirm the required dimensions for the application.</span></div>
+      <div className="editor-layout">
+        <div className="panel pad">
+          <div className="panel-head"><h2>Passport Photo Studio</h2><div className="tabs"><button className={mode === 'single' ? 'selected' : ''} onClick={() => setMode('single')}>Single</button><button className={mode === 'multiple' ? 'selected' : ''} onClick={() => setMode('multiple')}>Multiple</button></div></div>
+          <FileDrop accept="image/*" multiple={mode === 'multiple'} onFiles={setFiles} />
+          <div className="form-grid">
+            <label>Name (optional)<input value={name} onChange={e => setName(e.target.value)} placeholder="Name" /></label>
+            <label>Date (optional)<input value={date} onChange={e => setDate(e.target.value)} placeholder="DD-MM-YYYY" /></label>
+            <label>Number of photos<input type="number" min="1" max="30" value={count} onChange={e => setCount(Math.max(1, Math.min(30, +e.target.value || 1)))} /></label>
+            <label>Page size<select value={size} onChange={e => setSize(e.target.value)}><option value="4x6">4×6 inch (8 photos)</option><option value="A4">A4 (30 photos)</option></select></label>
+            <label>Change background<select value={changeBg ? 'yes' : 'no'} onChange={e => setChangeBg(e.target.value === 'yes')}><option value="no">No</option><option value="yes">Yes</option></select></label>
+            <label>Expand image<select value={expand ? 'yes' : 'no'} onChange={e => setExpand(e.target.value === 'yes')}><option value="no">No</option><option value="yes">Yes</option></select></label>
+            <label>Background color<input type="color" value={bg} onChange={e => setBg(e.target.value)} /></label>
+          </div>
+          <button className="primary" disabled={!files.length || busy} onClick={make}><Download size={16} />{busy ? 'Creating…' : 'Create & Download Photo Sheet'}</button>
+        </div>
+        <div className="panel pad">
+          <h2>Photo preview</h2>
+          <div className="photo-preview">{urls.length ? urls.map(u => <img src={u} key={u} alt="Uploaded passport photo" />) : <div className="preview-empty"><Camera size={44} /><span>Upload a photo to preview</span></div>}</div>
+          <p className="muted tiny">Background replacement and intelligent subject expansion are not included in this starter build; the color is applied to the photo sheet background.</p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Converter({ addHistory }) {
+  const [files, setFiles] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState('');
+
+  const convert = async () => {
+    if (!files.length) return alert('Select one or more files.');
+    setBusy(true);
+    try {
+      const f = files[0];
+      if (f.type === 'application/pdf') {
+        const doc = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+        for (let i = 1; i <= doc.numPages; i++) {
+          const p = await doc.getPage(i);
+          const vp = p.getViewport({ scale: 2 });
+          const c = document.createElement('canvas');
+          c.width = vp.width;
+          c.height = vp.height;
+          await p.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+          const a = document.createElement('a');
+          a.href = c.toDataURL('image/jpeg', .92);
+          a.download = `${f.name.replace(/\.pdf$/i, '')}-page-${i}.jpg`;
+          a.click();
+        }
+      } else {
+        const pdf = new jsPDF();
+        for (let i = 0; i < files.length; i++) {
+          if (i) pdf.addPage();
+          const data = await readData(files[i]);
+          const p = pdf.getImageProperties(data);
+          const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+          const ratio = Math.min((pw - 20) / p.width, (ph - 20) / p.height);
+          const w = p.width * ratio, h = p.height * ratio;
+          pdf.addImage(data, p.fileType || 'JPEG', (pw - w) / 2, (ph - h) / 2, w, h);
+        }
+        pdf.save('mahadev-images-to-pdf.pdf');
+      }
+      setResult(f.type === 'application/pdf' ? 'PDF pages downloaded as JPG images.' : 'Images combined into a PDF.');
+      await addHistory('Document', `${files.length} file(s) converted`);
+    } catch (e) {
+      alert('Conversion failed: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <PageTitle icon={<FileText />} title="Document Converter" subtitle="Convert image files to PDF or PDF pages to JPG." />
+      <div className="converter-wrap panel pad">
+        <h2>Upload documents</h2>
+        <p className="muted">Supported in this starter: JPG, PNG and PDF. Image files can be combined into one PDF; PDF pages can be exported as JPG.</p>
+        <FileDrop accept="image/*,application/pdf" multiple onFiles={setFiles} />
+        {files.map((f, i) => <div className="file-row" key={i}><FileText /><div><b>{f.name}</b><small>{(f.size / 1024).toFixed(0)} KB</small></div><button className="icon-btn" onClick={() => setFiles(v => v.filter((_, j) => j !== i))}><X size={16} /></button></div>)}
+        <button className="primary" disabled={!files.length || busy} onClick={convert}><ArrowLeftRight size={16} />{busy ? 'Converting…' : 'Convert & Download'}</button>
+        {result && <div className="success">{result}</div>}
+      </div>
+    </>
+  );
+}
+
+function FileDrop({ accept, multiple, onFiles }) {
+  const [drag, setDrag] = useState(false);
+  return (
+    <label className={`dropzone ${drag ? 'drag' : ''}`} onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={e => { e.preventDefault(); setDrag(false); onFiles(Array.from(e.dataTransfer.files)); }}>
+      <UploadCloud size={30} />
+      <b>Choose files or drag them here</b>
+      <span>Accepted: {accept.includes('pdf') ? 'JPG, PNG, PDF' : 'JPG, PNG'}</span>
+      <input type="file" accept={accept} multiple={multiple} onChange={e => onFiles(Array.from(e.target.files || []))} />
+    </label>
+  );
+}
+
+function HistoryPage({ history }) {
+  return <><PageTitle icon={<History />} title="Work History" subtitle="Your recent card and document activity." /><div className="panel history-panel"><HistoryTable history={history} /></div></>;
+}
+
+function HistoryTable({ history }) {
+  return history.length ? (
+    <div className="table-wrap">
+      <table>
+        <thead><tr><th>Type</th><th>Description</th><th>Date</th></tr></thead>
+        <tbody>{history.map((h, i) => <tr key={h.id || i}><td><span className="type-pill">{h.type}</span></td><td>{h.label}</td><td>{h.created_at ? new Date(h.created_at).toLocaleString() : 'Just now'}</td></tr>)}</tbody>
+      </table>
+    </div>
+  ) : <div className="empty">No work history yet. Start by creating a card or converting a document.</div>;
+}
+
+function WalletPage({ wallet }) {
+  return <><PageTitle icon={<Wallet />} title="Wallet" subtitle="Your portal wallet balance." /><div className="wallet-card"><span>Available balance</span><strong>₹{wallet}</strong><p>Wallet top-up and online payment gateway can be connected after payment provider credentials are configured.</p></div></>;
+}
+
+function readData(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+createRoot(document.getElementById('root')).render(<App />);
