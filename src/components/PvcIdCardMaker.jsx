@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v10_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v11_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -475,30 +475,79 @@ export default function PvcIdCardMaker() {
   };
 
   return (
-    <section>
+    <section className="mnc-pvc-root">
       <style>{`
-        .pvc-3mm-top-stage {
+        .mnc-pvc-print-only-stage {
           margin-top: 3mm !important;
           padding-top: 0 !important;
         }
+
         @media print {
           @page {
-            margin-top: 3mm !important;
+            size: A4 portrait;
+            margin: 3mm 6mm 6mm 6mm;
           }
-          .pvc-3mm-top-stage {
-            margin-top: 3mm !important;
-            padding-top: 0 !important;
+
+          html, body {
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .mnc-pvc-print-only-stage,
+          .mnc-pvc-print-only-stage * {
+            visibility: visible !important;
+          }
+
+          .mnc-pvc-print-only-stage {
+            position: fixed !important;
+            top: 3mm !important;
+            left: 0 !important;
+            right: 0 !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            transform: none !important;
+            zoom: 1 !important;
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: center !important;
+            align-items: flex-start !important;
+            gap: 8mm !important;
+            max-width: 198mm !important;
+            max-height: 280mm !important;
+            page-break-before: avoid !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            break-after: avoid !important;
+          }
+
+          .mnc-pvc-print-only-stage .cr80-card-img {
+            width: 85.6mm !important;
+            height: 54mm !important;
+            max-width: 85.6mm !important;
+            max-height: 54mm !important;
+            display: block !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
         }
       `}</style>
 
-      <div className="mnc-privacy-banner no-print">
+      <div className="mnc-privacy-banner">
         <span>
           🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Photo retouch, 3x Text Bold, Unclipped Font Size, aur Box Position browser mein hi kaam karte hain.
         </span>
       </div>
 
-      <div className="mnc-card no-print">
+      <div className="mnc-card">
         <h3>1. Select Card Type & Upload PDF</h3>
 
         <div className="mnc-preset-row" style={{ marginTop: '10px', justifyContent: 'flex-start' }}>
@@ -668,7 +717,7 @@ export default function PvcIdCardMaker() {
 
       {cardPair && (
         <div className={`mnc-card mnc-mt-20 pvc-preview-card ${layoutMode === 'a4' ? 'pvc-a4-print-card' : ''}`}>
-          <div className="mnc-preset-row no-print" style={{ justifyContent: 'flex-end' }}>
+          <div className="mnc-preset-row" style={{ justifyContent: 'flex-end' }}>
             <div className="pvc-preview-zoom-controls" aria-label="Preview zoom controls">
               <button
                 type="button"
@@ -702,7 +751,7 @@ export default function PvcIdCardMaker() {
           </div>
 
           <div
-            className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet pvc-3mm-top-stage`}
+            className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet mnc-pvc-print-only-stage`}
             style={{ '--pvc-preview-zoom': previewZoom, marginTop: '3mm' }}
           >
             <div style={{ position: 'relative', display: 'inline-block' }}>
