@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v19_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v22_';
+
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -11,6 +12,16 @@ const AADHAAR_CARD_SPEC = {
   pxWidth: Math.round((85.6 * AADHAAR_OUTPUT_DPI) / 25.4),
   pxHeight: Math.round((54 * AADHAAR_OUTPUT_DPI) / 25.4),
   renderScale: AADHAAR_OUTPUT_DPI / 72,
+};
+
+const COMPACT_300_DPI = 300;
+const COMPACT_CARD_SPEC = {
+  widthMm: 90,
+  heightMm: 60,
+  dpi: COMPACT_300_DPI,
+  pxWidth: Math.round((90 * COMPACT_300_DPI) / 25.4),
+  pxHeight: Math.round((60 * COMPACT_300_DPI) / 25.4),
+  renderScale: 2.5,
 };
 
 const CARD_PRESETS = {
@@ -67,6 +78,61 @@ const CARD_PRESETS = {
     backQrBox: { x: 62.0, y: 20.0, w: 31.0, h: 52.0 },
   },
 };
+
+function isValidImageUrl(url) {
+  return typeof url === 'string' && url.length > 60 && (url.startsWith('data:image/') || url.startsWith('blob:'));
+}
+
+function createSafePreviewDataUrl(sourceCanvas, maxWidth = 800) {
+  if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return '';
+  try {
+    const scale = Math.min(1, maxWidth / sourceCanvas.width);
+    const w = Math.max(1, Math.round(sourceCanvas.width * scale));
+    const h = Math.max(1, Math.round(sourceCanvas.height * scale));
+    const thumb = document.createElement('canvas');
+    thumb.width = w;
+    thumb.height = h;
+    const ctx = thumb.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(sourceCanvas, 0, 0, w, h);
+    const url = thumb.toDataURL('image/jpeg', 0.8);
+    return isValidImageUrl(url) ? url : '';
+  } catch {
+    return '';
+  }
+}
+
+function safeCropCardUrl(sourceCanvas, rectPercent, outWidth, outHeight, mimeType = 'image/png', quality = 0.92) {
+  try {
+    const fromUtil = cropPercentToCardCanvas(sourceCanvas, rectPercent, outWidth, outHeight);
+    if (isValidImageUrl(fromUtil)) return fromUtil;
+  } catch {
+    // Fallback below
+  }
+
+  if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return '';
+  const { x, y, w, h } = rectPercent;
+  const target = document.createElement('canvas');
+  target.width = outWidth;
+  target.height = outHeight;
+  const ctx = target.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, outWidth, outHeight);
+  ctx.drawImage(
+    sourceCanvas,
+    (sourceCanvas.width * x) / 100,
+    (sourceCanvas.height * y) / 100,
+    (sourceCanvas.width * w) / 100,
+    (sourceCanvas.height * h) / 100,
+    0,
+    0,
+    outWidth,
+    outHeight
+  );
+  const url = mimeType === 'image/jpeg' ? target.toDataURL('image/jpeg', quality) : target.toDataURL('image/png');
+  return isValidImageUrl(url) ? url : '';
+}
 
 function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
   const { textBoldness, textScalePercent, offsetX = 0, offsetY = 0 } = options;
@@ -276,7 +342,8 @@ function enhanceCardCanvas(baseDataUrl, options) {
         }
       }
 
-      resolve(canvas.toDataURL('image/png'));
+      const outUrl = canvas.toDataURL('image/png');
+      resolve(isValidImageUrl(outUrl) ? outUrl : baseDataUrl);
     };
     img.onerror = () => resolve(baseDataUrl);
     img.src = baseDataUrl;
@@ -331,10 +398,14 @@ export default function PvcIdCardMaker() {
   const [rawPair, setRawPair] = useState(null);
   const [cardPair, setCardPair] = useState(null);
 
+  const isAadhaarMode = selectedPreset === 'eaadhaar';
   const isVoterMode = selectedPreset === 'voterId';
-  const useAadhaarSpec = selectedPreset === 'eaadhaar' || isVoterMode;
-  const outputSpec = useAadhaarSpec ? AADHAAR_CARD_SPEC : SHOP_CONFIG.cr80CardSpec;
-  const outputDpi = useAadhaarSpec ? AADHAAR_OUTPUT_DPI : 300;
+  const outputSpec = isAadhaarMode
+    ? AADHAAR_CARD_SPEC
+    : isVoterMode
+      ? COMPACT_CARD_SPEC
+      : SHOP_CONFIG.cr80CardSpec;
+  const outputDpi = isAadhaarMode ? AADHAAR_OUTPUT_DPI : isVoterMode ? COMPACT_300_DPI : 300;
 
   useEffect(() => {
     try {
@@ -399,23 +470,43 @@ export default function PvcIdCardMaker() {
 
     try {
       const { pxWidth, pxHeight } = outputSpec;
-      const sourceRenderScale = useAadhaarSpec ? AADHAAR_CARD_SPEC.renderScale : 3;
+      const sourceRenderScale = isAadhaarMode
+        ? AADHAAR_CARD_SPEC.renderScale
+        : isVoterMode
+          ? COMPACT_CARD_SPEC.renderScale
+          : 3;
       const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
 
-      setFullPdfPreviewUrl(pageCanvas.toDataURL('image/jpeg', 0.85));
+      const previewMaxWidth = isAadhaarMode ? 1000 : 800;
+      const previewUrl = createSafePreviewDataUrl(pageCanvas, previewMaxWidth);
+      if (previewUrl) {
+        setFullPdfPreviewUrl(previewUrl);
+      }
 
-      const frontUrl = cropPercentToCardCanvas(
+      const cropMime = isVoterMode ? 'image/jpeg' : 'image/png';
+      const cropQuality = isVoterMode ? 0.9 : 0.92;
+
+      const frontUrl = safeCropCardUrl(
         pageCanvas,
         { x: crop.frontX, y: crop.y, w: crop.w, h: crop.h },
         pxWidth,
-        pxHeight
+        pxHeight,
+        cropMime,
+        cropQuality
       );
-      const backUrl = cropPercentToCardCanvas(
+      const backUrl = safeCropCardUrl(
         pageCanvas,
         { x: crop.backX, y: crop.y, w: crop.w, h: crop.h },
         pxWidth,
-        pxHeight
+        pxHeight,
+        cropMime,
+        cropQuality
       );
+
+      if (!frontUrl || !backUrl) {
+        setErrorMsg('Card image generate nahi ho paayi. Crop values ya PDF file check karein.');
+        return;
+      }
 
       setRawPair({
         name: pdfFile.name.replace(/\.pdf$/i, ''),
@@ -607,7 +698,7 @@ export default function PvcIdCardMaker() {
 
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> Aadhaar & e-EPIC Voter 600 DPI ({outputSpec.pxWidth}×{outputSpec.pxHeight}px), baaki PVC cards 300 DPI. Card size: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
+          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI ({AADHAAR_CARD_SPEC.pxWidth}×{AADHAAR_CARD_SPEC.pxHeight}px), e-EPIC Voter 300 DPI ({COMPACT_CARD_SPEC.pxWidth}×{COMPACT_CARD_SPEC.pxHeight}px). Card size: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
         </span>
       </div>
 
@@ -671,7 +762,7 @@ export default function PvcIdCardMaker() {
             <strong>🎯 Crop Calibration Bar (% of PDF Page) — Auto-Saved:</strong>
             <span className="mnc-calib-hint">
               {isVoterMode
-                ? 'e-EPIC Voter PDF mein sirf Front & Back card crop hoga (Aadhaar 600 DPI & 90×60mm print layout).'
+                ? 'e-EPIC Voter PDF 300 DPI aur compact resolution par crop hoga (Aadhaar 600 DPI settings par koi asar nahi).'
                 : 'Aadhaar ya Voter PDF mein card position thodi alag ho to yahan se adjust karein (Card: 90mm × 60mm, Gap: 2mm).'}
             </span>
           </div>
