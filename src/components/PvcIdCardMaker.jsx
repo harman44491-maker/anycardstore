@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v15_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v16_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -29,11 +29,11 @@ const CARD_PRESETS = {
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
-    y: 12.0,
-    h: 27.5,
-    frontX: 6.0,
-    backX: 51.0,
-    w: 43.0,
+    y: 12.2,
+    h: 27.6,
+    frontX: 5.5,
+    backX: 50.8,
+    w: 43.2,
     photoBox: { x: 3.5, y: 21.0, w: 27.5, h: 55.0 },
     frontTextBox: { x: 31.0, y: 23.0, w: 63.0, h: 50.0 },
     frontDisclaimerBox: { x: 31.0, y: 73.0, w: 60.0, h: 15.0 },
@@ -325,8 +325,10 @@ export default function PvcIdCardMaker() {
   const [rawPair, setRawPair] = useState(null);
   const [cardPair, setCardPair] = useState(null);
 
-  const outputSpec = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC : SHOP_CONFIG.cr80CardSpec;
-  const outputDpi = selectedPreset === 'eaadhaar' ? AADHAAR_OUTPUT_DPI : 300;
+  const isVoterMode = selectedPreset === 'voterId';
+  const useAadhaarSpec = selectedPreset === 'eaadhaar' || isVoterMode;
+  const outputSpec = useAadhaarSpec ? AADHAAR_CARD_SPEC : SHOP_CONFIG.cr80CardSpec;
+  const outputDpi = useAadhaarSpec ? AADHAAR_OUTPUT_DPI : 300;
 
   useEffect(() => {
     try {
@@ -391,7 +393,7 @@ export default function PvcIdCardMaker() {
 
     try {
       const { pxWidth, pxHeight } = outputSpec;
-      const sourceRenderScale = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC.renderScale : 3;
+      const sourceRenderScale = useAadhaarSpec ? AADHAAR_CARD_SPEC.renderScale : 3;
       const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
 
       setFullPdfPreviewUrl(pageCanvas.toDataURL('image/jpeg', 0.85));
@@ -434,6 +436,11 @@ export default function PvcIdCardMaker() {
       return;
     }
 
+    if (isVoterMode) {
+      setCardPair(rawPair);
+      return;
+    }
+
     let cancelled = false;
 
     const commonOpts = {
@@ -473,6 +480,7 @@ export default function PvcIdCardMaker() {
     };
   }, [
     rawPair,
+    isVoterMode,
     photoBrightness,
     photoContrast,
     textBoldness,
@@ -594,7 +602,7 @@ export default function PvcIdCardMaker() {
 
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Card size: 90 × 60 mm, Gap: 2mm, Top Margin: 3mm, Left/Right Margin: 5mm.
+          🔒 <strong>100% Local Processing:</strong> Aadhaar & e-EPIC Voter 600 DPI ({outputSpec.pxWidth}×{outputSpec.pxHeight}px), baaki PVC cards 300 DPI. Card size: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
         </span>
       </div>
 
@@ -627,16 +635,18 @@ export default function PvcIdCardMaker() {
             />
           </div>
 
-          <div className="mnc-upload-box">
-            <label>PDF Password (e-Aadhaar ke liye)</label>
-            <input
-              type="password"
-              placeholder="e.g. ANIL1995"
-              value={pdfPassword}
-              onChange={(e) => setPdfPassword(e.target.value)}
-              style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-            />
-          </div>
+          {!isVoterMode && (
+            <div className="mnc-upload-box">
+              <label>PDF Password (e-Aadhaar ke liye)</label>
+              <input
+                type="password"
+                placeholder="e.g. ANIL1995"
+                value={pdfPassword}
+                onChange={(e) => setPdfPassword(e.target.value)}
+                style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+              />
+            </div>
+          )}
 
           <div className="mnc-upload-box">
             <label>Print Output Layout</label>
@@ -655,7 +665,9 @@ export default function PvcIdCardMaker() {
           <div className="mnc-calib-header">
             <strong>🎯 Crop Calibration Bar (% of PDF Page) — Auto-Saved:</strong>
             <span className="mnc-calib-hint">
-              Aadhaar ya Voter PDF mein card position thodi alag ho to yahan se adjust karein (Card: 90mm × 60mm, Gap: 2mm).
+              {isVoterMode
+                ? 'e-EPIC Voter PDF mein sirf Front & Back card crop hoga (Aadhaar 600 DPI & 90×60mm print layout).'
+                : 'Aadhaar ya Voter PDF mein card position thodi alag ho to yahan se adjust karein (Card: 90mm × 60mm, Gap: 2mm).'}
             </span>
           </div>
           <div className="mnc-calib-inputs">
@@ -881,255 +893,257 @@ export default function PvcIdCardMaker() {
             </div>
           )}
 
-          <div
-            style={{
-              marginTop: '14px',
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              borderRadius: '10px',
-              padding: '12px 16px',
-              display: 'grid',
-              gap: '14px',
-            }}
-          >
-            <div>
-              <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
-                <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                  ✨ Customer Photo Brightness & Contrast (Full Photo Selection):
-                </strong>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="mnc-btn mnc-btn-ghost"
-                    onClick={() => setShowBoxesOnCard((v) => !v)}
-                  >
-                    {showBoxesOnCard ? 'Hide Selection Boxes' : '👁️ Show All Boxes'}
-                  </button>
-                  <button
-                    type="button"
-                    className="mnc-btn mnc-btn-ghost"
-                    onClick={() => setShowBoxTuning((v) => !v)}
-                  >
-                    {showBoxTuning ? 'Hide Box Coordinates' : '⚙ Resize All Boxes'}
-                  </button>
+          {!isVoterMode && (
+            <div
+              style={{
+                marginTop: '14px',
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                display: 'grid',
+                gap: '14px',
+              }}
+            >
+              <div>
+                <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
+                  <strong style={{ fontSize: '13px', color: '#0f172a' }}>
+                    ✨ Customer Photo Brightness & Contrast (Full Photo Selection):
+                  </strong>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="mnc-btn mnc-btn-ghost"
+                      onClick={() => setShowBoxesOnCard((v) => !v)}
+                    >
+                      {showBoxesOnCard ? 'Hide Selection Boxes' : '👁️ Show All Boxes'}
+                    </button>
+                    <button
+                      type="button"
+                      className="mnc-btn mnc-btn-ghost"
+                      onClick={() => setShowBoxTuning((v) => !v)}
+                    >
+                      {showBoxTuning ? 'Hide Box Coordinates' : '⚙ Resize All Boxes'}
+                    </button>
+                    <button
+                      type="button"
+                      className="mnc-btn mnc-btn-ghost"
+                      onClick={() => {
+                        setPhotoBrightness(133);
+                        setPhotoContrast(100);
+                      }}
+                    >
+                      Reset Photo
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mnc-controls-row" style={{ marginTop: '8px', justifyContent: 'flex-start', gap: '24px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    Photo Brightness ({photoBrightness}%):
+                    <input
+                      type="range"
+                      min="80"
+                      max="170"
+                      value={photoBrightness}
+                      onChange={(e) => setPhotoBrightness(Number(e.target.value))}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    Photo Contrast ({photoContrast}%):
+                    <input
+                      type="range"
+                      min="80"
+                      max="150"
+                      value={photoContrast}
+                      onChange={(e) => setPhotoContrast(Number(e.target.value))}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
+                  <strong style={{ fontSize: '13px', color: '#0f172a' }}>
+                    🖋️ Selective Text Bold (3x Power: 0–12) & Unclipped Font Size (Front: Name/DOB • Back: Address):
+                  </strong>
                   <button
                     type="button"
                     className="mnc-btn mnc-btn-ghost"
                     onClick={() => {
-                      setPhotoBrightness(133);
-                      setPhotoContrast(100);
+                      setTextBoldness(5);
+                      setTextScale(130);
                     }}
                   >
-                    Reset Photo
+                    Reset Text
                   </button>
                 </div>
+
+                <div className="mnc-controls-row" style={{ marginTop: '8px', justifyContent: 'flex-start', gap: '24px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    Text Boldness ({textBoldness === 0 ? 'Normal' : `Level ${textBoldness} / 12`}):
+                    <input
+                      type="range"
+                      min="0"
+                      max="12"
+                      step="1"
+                      value={textBoldness}
+                      onChange={(e) => setTextBoldness(Number(e.target.value))}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    Text Font Size ({textScale}%):
+                    <input
+                      type="range"
+                      min="100"
+                      max="140"
+                      step="2"
+                      value={textScale}
+                      onChange={(e) => setTextScale(Number(e.target.value))}
+                    />
+                  </label>
+                </div>
               </div>
 
-              <div className="mnc-controls-row" style={{ marginTop: '8px', justifyContent: 'flex-start', gap: '24px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Photo Brightness ({photoBrightness}%):
-                  <input
-                    type="range"
-                    min="80"
-                    max="170"
-                    value={photoBrightness}
-                    onChange={(e) => setPhotoBrightness(Number(e.target.value))}
-                  />
-                </label>
+              <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gap: '12px' }}>
+                <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
+                  <strong style={{ fontSize: '13px', color: '#0f172a' }}>
+                    📐 Resize & Position Controls (Up/Down & Left/Right Move):
+                  </strong>
+                  <button
+                    type="button"
+                    className="mnc-btn mnc-btn-ghost"
+                    onClick={() => {
+                      setDisclaimerScale(73);
+                      setDisclaimerOffsetX(7.5);
+                      setDisclaimerOffsetY(12);
+                      setBackAddressOffsetX(0);
+                      setBackAddressOffsetY(-0.5);
+                      setQrScale(65);
+                      setQrOffsetX(9);
+                      setQrOffsetY(3.5);
+                    }}
+                  >
+                    Reset Positions
+                  </button>
+                </div>
 
-                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Photo Contrast ({photoContrast}%):
-                  <input
-                    type="range"
-                    min="80"
-                    max="150"
-                    value={photoContrast}
-                    onChange={(e) => setPhotoContrast(Number(e.target.value))}
-                  />
-                </label>
+                <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fed7aa' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c', marginBottom: '6px' }}>
+                    🟠 1. Front Disclaimer Box (Size & Move):
+                  </div>
+                  <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Size ({disclaimerScale}%):
+                      <input type="range" min="65" max="100" step="1" value={disclaimerScale} onChange={(e) => setDisclaimerScale(Number(e.target.value))} />
+                    </label>
+                    <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Left / Right ({disclaimerOffsetX}%):
+                      <input type="range" min="-15" max="15" step="0.5" value={disclaimerOffsetX} onChange={(e) => setDisclaimerOffsetX(Number(e.target.value))} />
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetX((v) => +(v - 0.5).toFixed(1))}>◀</button>
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetX((v) => +(v + 0.5).toFixed(1))}>▶</button>
+                    </label>
+                    <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Up / Down ({disclaimerOffsetY}%):
+                      <input type="range" min="-15" max="15" step="0.5" value={disclaimerOffsetY} onChange={(e) => setDisclaimerOffsetY(Number(e.target.value))} />
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetY((v) => +(v - 0.5).toFixed(1))}>▲</button>
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetY((v) => +(v + 0.5).toFixed(1))}>▼</button>
+                    </label>
+                  </div>
+                </div>
+
+                <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#1d4ed8', marginBottom: '6px' }}>
+                    🔵 2. Back Address Text (Move Left/Right & Up/Down):
+                  </div>
+                  <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Left / Right ({backAddressOffsetX}%):
+                      <input type="range" min="-15" max="15" step="0.5" value={backAddressOffsetX} onChange={(e) => setBackAddressOffsetX(Number(e.target.value))} />
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetX((v) => +(v - 0.5).toFixed(1))}>◀</button>
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetX((v) => +(v + 0.5).toFixed(1))}>▶</button>
+                    </label>
+                    <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Up / Down ({backAddressOffsetY}%):
+                      <input type="range" min="-15" max="15" step="0.5" value={backAddressOffsetY} onChange={(e) => setBackAddressOffsetY(Number(e.target.value))} />
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetY((v) => +(v - 0.5).toFixed(1))}>▲</button>
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetY((v) => +(v + 0.5).toFixed(1))}>▼</button>
+                    </label>
+                  </div>
+                </div>
+
+                <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd6fe' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>
+                    🟣 3. Back QR Code (Size & Move Left/Right, Up/Down):
+                  </div>
+                  <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Size ({qrScale}%):
+                      <input type="range" min="65" max="100" step="1" value={qrScale} onChange={(e) => setQrScale(Number(e.target.value))} />
+                    </label>
+                    <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Left / Right ({qrOffsetX}%):
+                      <input type="range" min="-15" max="15" step="0.5" value={qrOffsetX} onChange={(e) => setQrOffsetX(Number(e.target.value))} />
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetX((v) => +(v - 0.5).toFixed(1))}>◀</button>
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetX((v) => +(v + 0.5).toFixed(1))}>▶</button>
+                    </label>
+                    <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Up / Down ({qrOffsetY}%):
+                      <input type="range" min="-15" max="15" step="0.5" value={qrOffsetY} onChange={(e) => setQrOffsetY(Number(e.target.value))} />
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetY((v) => +(v - 0.5).toFixed(1))}>▲</button>
+                      <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetY((v) => +(v + 0.5).toFixed(1))}>▼</button>
+                    </label>
+                  </div>
+                </div>
               </div>
+
+              {showBoxTuning && (
+                <div style={{ paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'grid', gap: '10px' }}>
+                  <div className="mnc-calib-inputs">
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#dc2626', minWidth: '175px' }}>🔴 Photo Box (%):</span>
+                    <label>X <input type="number" step="0.5" value={activePhotoBox.x} onChange={(e) => updateSubBoxField('photoBox', 'x', e.target.value)} /></label>
+                    <label>Y <input type="number" step="0.5" value={activePhotoBox.y} onChange={(e) => updateSubBoxField('photoBox', 'y', e.target.value)} /></label>
+                    <label>W <input type="number" step="0.5" value={activePhotoBox.w} onChange={(e) => updateSubBoxField('photoBox', 'w', e.target.value)} /></label>
+                    <label>H <input type="number" step="0.5" value={activePhotoBox.h} onChange={(e) => updateSubBoxField('photoBox', 'h', e.target.value)} /></label>
+                  </div>
+
+                  <div className="mnc-calib-inputs">
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#16a34a', minWidth: '175px' }}>🟢 Front Name/DOB (%):</span>
+                    <label>X <input type="number" step="0.5" value={activeFrontTextBox.x} onChange={(e) => updateSubBoxField('frontTextBox', 'x', e.target.value)} /></label>
+                    <label>Y <input type="number" step="0.5" value={activeFrontTextBox.y} onChange={(e) => updateSubBoxField('frontTextBox', 'y', e.target.value)} /></label>
+                    <label>W <input type="number" step="0.5" value={activeFrontTextBox.w} onChange={(e) => updateSubBoxField('frontTextBox', 'w', e.target.value)} /></label>
+                    <label>H <input type="number" step="0.5" value={activeFrontTextBox.h} onChange={(e) => updateSubBoxField('frontTextBox', 'h', e.target.value)} /></label>
+                  </div>
+
+                  <div className="mnc-calib-inputs">
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#d97706', minWidth: '175px' }}>🟠 Front Disclaimer (%):</span>
+                    <label>X <input type="number" step="0.5" value={activeFrontDisclaimerBox.x} onChange={(e) => updateSubBoxField('frontDisclaimerBox', 'x', e.target.value)} /></label>
+                    <label>Y <input type="number" step="0.5" value={activeFrontDisclaimerBox.y} onChange={(e) => updateSubBoxField('frontDisclaimerBox', 'y', e.target.value)} /></label>
+                    <label>W <input type="number" step="0.5" value={activeFrontDisclaimerBox.w} onChange={(e) => updateSubBoxField('frontDisclaimerBox', 'w', e.target.value)} /></label>
+                    <label>H <input type="number" step="0.5" value={activeFrontDisclaimerBox.h} onChange={(e) => updateSubBoxField('frontDisclaimerBox', 'h', e.target.value)} /></label>
+                  </div>
+
+                  <div className="mnc-calib-inputs">
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb', minWidth: '175px' }}>🔵 Back Address (%):</span>
+                    <label>X <input type="number" step="0.5" value={activeBackTextBox.x} onChange={(e) => updateSubBoxField('backTextBox', 'x', e.target.value)} /></label>
+                    <label>Y <input type="number" step="0.5" value={activeBackTextBox.y} onChange={(e) => updateSubBoxField('backTextBox', 'y', e.target.value)} /></label>
+                    <label>W <input type="number" step="0.5" value={activeBackTextBox.w} onChange={(e) => updateSubBoxField('backTextBox', 'w', e.target.value)} /></label>
+                    <label>H <input type="number" step="0.5" value={activeBackTextBox.h} onChange={(e) => updateSubBoxField('backTextBox', 'h', e.target.value)} /></label>
+                  </div>
+
+                  <div className="mnc-calib-inputs">
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#7c3aed', minWidth: '175px' }}>🟣 Back QR Code (%):</span>
+                    <label>X <input type="number" step="0.5" value={activeBackQrBox.x} onChange={(e) => updateSubBoxField('backQrBox', 'x', e.target.value)} /></label>
+                    <label>Y <input type="number" step="0.5" value={activeBackQrBox.y} onChange={(e) => updateSubBoxField('backQrBox', 'y', e.target.value)} /></label>
+                    <label>W <input type="number" step="0.5" value={activeBackQrBox.w} onChange={(e) => updateSubBoxField('backQrBox', 'w', e.target.value)} /></label>
+                    <label>H <input type="number" step="0.5" value={activeBackQrBox.h} onChange={(e) => updateSubBoxField('backQrBox', 'h', e.target.value)} /></label>
+                  </div>
+                </div>
+              )}
             </div>
-
-            <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-              <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
-                <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                  🖋️ Selective Text Bold (3x Power: 0–12) & Unclipped Font Size (Front: Name/DOB • Back: Address):
-                </strong>
-                <button
-                  type="button"
-                  className="mnc-btn mnc-btn-ghost"
-                  onClick={() => {
-                    setTextBoldness(5);
-                    setTextScale(130);
-                  }}
-                >
-                  Reset Text
-                </button>
-              </div>
-
-              <div className="mnc-controls-row" style={{ marginTop: '8px', justifyContent: 'flex-start', gap: '24px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Text Boldness ({textBoldness === 0 ? 'Normal' : `Level ${textBoldness} / 12`}):
-                  <input
-                    type="range"
-                    min="0"
-                    max="12"
-                    step="1"
-                    value={textBoldness}
-                    onChange={(e) => setTextBoldness(Number(e.target.value))}
-                  />
-                </label>
-
-                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Text Font Size ({textScale}%):
-                  <input
-                    type="range"
-                    min="100"
-                    max="140"
-                    step="2"
-                    value={textScale}
-                    onChange={(e) => setTextScale(Number(e.target.value))}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gap: '12px' }}>
-              <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
-                <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                  📐 Resize & Position Controls (Up/Down & Left/Right Move):
-                </strong>
-                <button
-                  type="button"
-                  className="mnc-btn mnc-btn-ghost"
-                  onClick={() => {
-                    setDisclaimerScale(73);
-                    setDisclaimerOffsetX(7.5);
-                    setDisclaimerOffsetY(12);
-                    setBackAddressOffsetX(0);
-                    setBackAddressOffsetY(-0.5);
-                    setQrScale(65);
-                    setQrOffsetX(9);
-                    setQrOffsetY(3.5);
-                  }}
-                >
-                  Reset Positions
-                </button>
-              </div>
-
-              <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fed7aa' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c', marginBottom: '6px' }}>
-                  🟠 1. Front Disclaimer Box (Size & Move):
-                </div>
-                <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Size ({disclaimerScale}%):
-                    <input type="range" min="65" max="100" step="1" value={disclaimerScale} onChange={(e) => setDisclaimerScale(Number(e.target.value))} />
-                  </label>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Left / Right ({disclaimerOffsetX}%):
-                    <input type="range" min="-15" max="15" step="0.5" value={disclaimerOffsetX} onChange={(e) => setDisclaimerOffsetX(Number(e.target.value))} />
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetX((v) => +(v - 0.5).toFixed(1))}>◀</button>
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetX((v) => +(v + 0.5).toFixed(1))}>▶</button>
-                  </label>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Up / Down ({disclaimerOffsetY}%):
-                    <input type="range" min="-15" max="15" step="0.5" value={disclaimerOffsetY} onChange={(e) => setDisclaimerOffsetY(Number(e.target.value))} />
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetY((v) => +(v - 0.5).toFixed(1))}>▲</button>
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetY((v) => +(v + 0.5).toFixed(1))}>▼</button>
-                  </label>
-                </div>
-              </div>
-
-              <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1d4ed8', marginBottom: '6px' }}>
-                  🔵 2. Back Address Text (Move Left/Right & Up/Down):
-                </div>
-                <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Left / Right ({backAddressOffsetX}%):
-                    <input type="range" min="-15" max="15" step="0.5" value={backAddressOffsetX} onChange={(e) => setBackAddressOffsetX(Number(e.target.value))} />
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetX((v) => +(v - 0.5).toFixed(1))}>◀</button>
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetX((v) => +(v + 0.5).toFixed(1))}>▶</button>
-                  </label>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Up / Down ({backAddressOffsetY}%):
-                    <input type="range" min="-15" max="15" step="0.5" value={backAddressOffsetY} onChange={(e) => setBackAddressOffsetY(Number(e.target.value))} />
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetY((v) => +(v - 0.5).toFixed(1))}>▲</button>
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetY((v) => +(v + 0.5).toFixed(1))}>▼</button>
-                  </label>
-                </div>
-              </div>
-
-              <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd6fe' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>
-                  🟣 3. Back QR Code (Size & Move Left/Right, Up/Down):
-                </div>
-                <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Size ({qrScale}%):
-                    <input type="range" min="65" max="100" step="1" value={qrScale} onChange={(e) => setQrScale(Number(e.target.value))} />
-                  </label>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Left / Right ({qrOffsetX}%):
-                    <input type="range" min="-15" max="15" step="0.5" value={qrOffsetX} onChange={(e) => setQrOffsetX(Number(e.target.value))} />
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetX((v) => +(v - 0.5).toFixed(1))}>◀</button>
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetX((v) => +(v + 0.5).toFixed(1))}>▶</button>
-                  </label>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Up / Down ({qrOffsetY}%):
-                    <input type="range" min="-15" max="15" step="0.5" value={qrOffsetY} onChange={(e) => setQrOffsetY(Number(e.target.value))} />
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetY((v) => +(v - 0.5).toFixed(1))}>▲</button>
-                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetY((v) => +(v + 0.5).toFixed(1))}>▼</button>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {showBoxTuning && (
-              <div style={{ paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'grid', gap: '10px' }}>
-                <div className="mnc-calib-inputs">
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#dc2626', minWidth: '175px' }}>🔴 Photo Box (%):</span>
-                  <label>X <input type="number" step="0.5" value={activePhotoBox.x} onChange={(e) => updateSubBoxField('photoBox', 'x', e.target.value)} /></label>
-                  <label>Y <input type="number" step="0.5" value={activePhotoBox.y} onChange={(e) => updateSubBoxField('photoBox', 'y', e.target.value)} /></label>
-                  <label>W <input type="number" step="0.5" value={activePhotoBox.w} onChange={(e) => updateSubBoxField('photoBox', 'w', e.target.value)} /></label>
-                  <label>H <input type="number" step="0.5" value={activePhotoBox.h} onChange={(e) => updateSubBoxField('photoBox', 'h', e.target.value)} /></label>
-                </div>
-
-                <div className="mnc-calib-inputs">
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#16a34a', minWidth: '175px' }}>🟢 Front Name/DOB (%):</span>
-                  <label>X <input type="number" step="0.5" value={activeFrontTextBox.x} onChange={(e) => updateSubBoxField('frontTextBox', 'x', e.target.value)} /></label>
-                  <label>Y <input type="number" step="0.5" value={activeFrontTextBox.y} onChange={(e) => updateSubBoxField('frontTextBox', 'y', e.target.value)} /></label>
-                  <label>W <input type="number" step="0.5" value={activeFrontTextBox.w} onChange={(e) => updateSubBoxField('frontTextBox', 'w', e.target.value)} /></label>
-                  <label>H <input type="number" step="0.5" value={activeFrontTextBox.h} onChange={(e) => updateSubBoxField('frontTextBox', 'h', e.target.value)} /></label>
-                </div>
-
-                <div className="mnc-calib-inputs">
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#d97706', minWidth: '175px' }}>🟠 Front Disclaimer (%):</span>
-                  <label>X <input type="number" step="0.5" value={activeFrontDisclaimerBox.x} onChange={(e) => updateSubBoxField('frontDisclaimerBox', 'x', e.target.value)} /></label>
-                  <label>Y <input type="number" step="0.5" value={activeFrontDisclaimerBox.y} onChange={(e) => updateSubBoxField('frontDisclaimerBox', 'y', e.target.value)} /></label>
-                  <label>W <input type="number" step="0.5" value={activeFrontDisclaimerBox.w} onChange={(e) => updateSubBoxField('frontDisclaimerBox', 'w', e.target.value)} /></label>
-                  <label>H <input type="number" step="0.5" value={activeFrontDisclaimerBox.h} onChange={(e) => updateSubBoxField('frontDisclaimerBox', 'h', e.target.value)} /></label>
-                </div>
-
-                <div className="mnc-calib-inputs">
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb', minWidth: '175px' }}>🔵 Back Address (%):</span>
-                  <label>X <input type="number" step="0.5" value={activeBackTextBox.x} onChange={(e) => updateSubBoxField('backTextBox', 'x', e.target.value)} /></label>
-                  <label>Y <input type="number" step="0.5" value={activeBackTextBox.y} onChange={(e) => updateSubBoxField('backTextBox', 'y', e.target.value)} /></label>
-                  <label>W <input type="number" step="0.5" value={activeBackTextBox.w} onChange={(e) => updateSubBoxField('backTextBox', 'w', e.target.value)} /></label>
-                  <label>H <input type="number" step="0.5" value={activeBackTextBox.h} onChange={(e) => updateSubBoxField('backTextBox', 'h', e.target.value)} /></label>
-                </div>
-
-                <div className="mnc-calib-inputs">
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#7c3aed', minWidth: '175px' }}>🟣 Back QR Code (%):</span>
-                  <label>X <input type="number" step="0.5" value={activeBackQrBox.x} onChange={(e) => updateSubBoxField('backQrBox', 'x', e.target.value)} /></label>
-                  <label>Y <input type="number" step="0.5" value={activeBackQrBox.y} onChange={(e) => updateSubBoxField('backQrBox', 'y', e.target.value)} /></label>
-                  <label>W <input type="number" step="0.5" value={activeBackQrBox.w} onChange={(e) => updateSubBoxField('backQrBox', 'w', e.target.value)} /></label>
-                  <label>H <input type="number" step="0.5" value={activeBackQrBox.h} onChange={(e) => updateSubBoxField('backQrBox', 'h', e.target.value)} /></label>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           <div
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet mnc-pvc-print-only-stage`}
@@ -1137,7 +1151,7 @@ export default function PvcIdCardMaker() {
           >
             <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
-              {showBoxesOnCard && (
+              {!isVoterMode && showBoxesOnCard && (
                 <>
                   <div
                     className="no-print"
@@ -1184,7 +1198,7 @@ export default function PvcIdCardMaker() {
 
             <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
-              {showBoxesOnCard && (
+              {!isVoterMode && showBoxesOnCard && (
                 <>
                   <div
                     className="no-print"
