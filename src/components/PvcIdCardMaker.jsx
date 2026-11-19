@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v17_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v18_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -67,6 +67,10 @@ const CARD_PRESETS = {
     backQrBox: { x: 62.0, y: 20.0, w: 31.0, h: 52.0 },
   },
 };
+
+function isValidImageUrl(url) {
+  return typeof url === 'string' && url.length > 50 && (url.startsWith('data:image/') || url.startsWith('blob:'));
+}
 
 function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
   const { textBoldness, textScalePercent, offsetX = 0, offsetY = 0 } = options;
@@ -209,6 +213,11 @@ function enhanceCardCanvas(baseDataUrl, options) {
     img.onload = () => {
       const w = img.width;
       const h = img.height;
+      if (!w || !h) {
+        resolve(baseDataUrl);
+        return;
+      }
+
       const canvas = document.createElement('canvas');
       canvas.width = w;
       canvas.height = h;
@@ -391,13 +400,22 @@ export default function PvcIdCardMaker() {
 
     setLoading(true);
     setErrorMsg('');
+    setFullPdfPreviewUrl(null);
 
     try {
       const { pxWidth, pxHeight } = outputSpec;
       const sourceRenderScale = useAadhaarSpec ? AADHAAR_CARD_SPEC.renderScale : 3;
       const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
 
-      setFullPdfPreviewUrl(pageCanvas.toDataURL('image/jpeg', 0.85));
+      if (!pageCanvas || !pageCanvas.width || !pageCanvas.height) {
+        setErrorMsg('PDF page canvas khali render hua. Kripya pdfRenderer.js mein renderPdfPageToCanvas check karein.');
+        return;
+      }
+
+      const fullUrl = pageCanvas.toDataURL('image/jpeg', 0.85);
+      if (isValidImageUrl(fullUrl)) {
+        setFullPdfPreviewUrl(fullUrl);
+      }
 
       const frontUrl = cropPercentToCardCanvas(
         pageCanvas,
@@ -412,8 +430,8 @@ export default function PvcIdCardMaker() {
         pxHeight
       );
 
-      if (!frontUrl || !backUrl) {
-        setErrorMsg('Front ya Back card crop nahi ho paya. Crop values check karein.');
+      if (!isValidImageUrl(frontUrl) || !isValidImageUrl(backUrl)) {
+        setErrorMsg('Front ya Back card crop image blank aa rahi hai. Crop values ya cropPercentToCardCanvas check karein.');
         return;
       }
 
