@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v33_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v34_';
 
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
@@ -26,17 +26,17 @@ const COMPACT_CARD_SPEC = {
 
 const CARD_PRESETS = {
   eaadhaar: {
-    label: 'e-Aadhaar PDF (High-DPI Direct)',
-    y: 72.2,
-    h: 20.6,
+    label: 'e-Aadhaar PDF (High-DPI Clear)',
+    y: 72.85,
+    h: 19.75,
     frontX: 7.6,
     backX: 50.5,
     w: 42.0,
-    photoBox: { x: 10.5, y: 22.3, w: 19.5, h: 37.5 },
-    textZones: [
-      { x: 32.0, y: 19.0, w: 46.0, h: 32.0 },
-      { x: 4.0, y: 17.5, w: 57.0, h: 43.0 },
-    ],
+    photoBox: { x: 10.5, y: 21.0, w: 19.5, h: 38.5 },
+    // Front Name/DOB/Gender zone (above red box)
+    frontTextZone: { x: 32.0, y: 18.5, w: 46.0, h: 24.5 },
+    // Back Address zone (left of QR, above Aadhaar number)
+    backTextZone: { x: 4.0, y: 17.5, w: 56.5, h: 39.5 },
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
@@ -64,8 +64,10 @@ const CARD_PRESETS = {
   },
 };
 
-function applyCleanTextCrispness(ctx, img, zone, boldLevel) {
-  if (!zone || boldLevel <= 0) return;
+function enhanceSafeTextZone(ctx, img, zone, options) {
+  const { textScalePercent = 108, textBoldness = 4 } = options;
+  if (!zone) return;
+
   const w = img.width;
   const h = img.height;
   const zx = Math.round((zone.x / 100) * w);
@@ -81,41 +83,59 @@ function applyCleanTextCrispness(ctx, img, zone, boldLevel) {
   pCtx.imageSmoothingEnabled = true;
   pCtx.imageSmoothingQuality = 'high';
 
-  const contrast = 100 + Math.min(18, boldLevel * 3);
+  const contrast = 100 + Math.min(22, textBoldness * 4);
   pCtx.filter = `contrast(${contrast}%)`;
   pCtx.drawImage(img, zx, zy, zw, zh, 0, 0, zw, zh);
   pCtx.filter = 'none';
 
-  const base = document.createElement('canvas');
-  base.width = zw;
-  base.height = zh;
-  base.getContext('2d').drawImage(patch, 0, 0);
+  if (textBoldness > 0) {
+    const base = document.createElement('canvas');
+    base.width = zw;
+    base.height = zh;
+    base.getContext('2d').drawImage(patch, 0, 0);
 
-  const shifts = [
-    [0.45, 0],
-    [-0.45, 0],
-    [0, 0.45],
-    [0, -0.45],
-  ];
-  const count = Math.min(4, boldLevel);
-  pCtx.save();
-  pCtx.globalCompositeOperation = 'darken';
-  pCtx.globalAlpha = 0.42;
-  for (let i = 0; i < count; i++) {
-    const [dx, dy] = shifts[i % shifts.length];
-    pCtx.drawImage(base, dx, dy);
+    const dirs = [
+      [0.55, 0],
+      [-0.55, 0],
+      [0, 0.55],
+      [0, -0.55],
+    ];
+    const passes = Math.min(4, textBoldness);
+    pCtx.save();
+    pCtx.globalCompositeOperation = 'darken';
+    pCtx.globalAlpha = 0.45;
+    for (let i = 0; i < passes; i++) {
+      const [dx, dy] = dirs[i % dirs.length];
+      pCtx.drawImage(base, dx, dy);
+    }
+    pCtx.restore();
   }
-  pCtx.restore();
+
+  // Clamp scale inside zone height so it never touches neighboring boxes
+  const requestedScale = textScalePercent / 100;
+  const safeScale = Math.max(1.0, Math.min(requestedScale, 1.14));
+  const outW = Math.min(zw, Math.round(zw * safeScale));
+  const outH = Math.min(zh, Math.round(zh * safeScale));
 
   ctx.save();
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(zx, zy, zw, zh);
-  ctx.drawImage(patch, zx, zy);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(patch, 0, 0, zw, zh, zx, zy, outW, outH);
   ctx.restore();
 }
 
-function polishRealCard(baseUrl, options) {
-  const { side, photoBox, textZones = [], photoBrightness, photoContrast, textBoldness } = options;
+function polishCardForPrint(baseUrl, options) {
+  const {
+    side,
+    photoBox,
+    textZone,
+    photoBrightness,
+    photoContrast,
+    textBoldness,
+    textScalePercent,
+  } = options;
 
   return new Promise((resolve) => {
     const img = new Image();
@@ -148,8 +168,11 @@ function polishRealCard(baseUrl, options) {
         ctx.restore();
       }
 
-      if (textBoldness > 0 && textZones.length > 0) {
-        textZones.forEach((zone) => applyCleanTextCrispness(ctx, img, zone, textBoldness));
+      if (textZone) {
+        enhanceSafeTextZone(ctx, img, textZone, {
+          textScalePercent,
+          textBoldness,
+        });
       }
 
       resolve(canvas.toDataURL('image/png'));
@@ -169,8 +192,9 @@ export default function PvcIdCardMaker() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const [photoBrightness, setPhotoBrightness] = useState(125);
-  const [photoContrast, setPhotoContrast] = useState(105);
-  const [textBoldness, setTextBoldness] = useState(3);
+  const [photoContrast, setPhotoContrast] = useState(106);
+  const [textBoldness, setTextBoldness] = useState(4);
+  const [textScalePercent, setTextScalePercent] = useState(108);
 
   const [crop, setCrop] = useState(() => {
     try {
@@ -272,24 +296,24 @@ export default function PvcIdCardMaker() {
 
     let cancelled = false;
     const presetConfig = CARD_PRESETS[selectedPreset] || CARD_PRESETS.eaadhaar;
-    const frontZones = isAadhaarMode ? [presetConfig.textZones[0]] : [];
-    const backZones = isAadhaarMode ? [presetConfig.textZones[1]] : [];
 
     Promise.all([
-      polishRealCard(rawPair.frontUrl, {
+      polishCardForPrint(rawPair.frontUrl, {
         side: 'front',
         photoBox: presetConfig.photoBox,
-        textZones: frontZones,
+        textZone: isAadhaarMode ? presetConfig.frontTextZone : null,
         photoBrightness,
         photoContrast,
         textBoldness,
+        textScalePercent,
       }),
-      polishRealCard(rawPair.backUrl, {
+      polishCardForPrint(rawPair.backUrl, {
         side: 'back',
-        textZones: backZones,
+        textZone: isAadhaarMode ? presetConfig.backTextZone : null,
         photoBrightness: 100,
         photoContrast: 100,
         textBoldness,
+        textScalePercent,
       }),
     ]).then(([frontPolished, backPolished]) => {
       if (cancelled) return;
@@ -303,7 +327,7 @@ export default function PvcIdCardMaker() {
     return () => {
       cancelled = true;
     };
-  }, [rawPair, selectedPreset, isAadhaarMode, photoBrightness, photoContrast, textBoldness]);
+  }, [rawPair, selectedPreset, isAadhaarMode, photoBrightness, photoContrast, textBoldness, textScalePercent]);
 
   const downloadSide = (side) => {
     if (!cardPair) return;
@@ -393,7 +417,7 @@ export default function PvcIdCardMaker() {
 
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> High-DPI Direct Card Crop ({outputDpi} DPI, No Border) | Card: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
+          🔒 <strong>100% Local Processing:</strong> High-DPI Clear Print ({outputDpi} DPI) | Text Size: {textScalePercent}% | Card: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
         </span>
       </div>
 
@@ -456,11 +480,11 @@ export default function PvcIdCardMaker() {
           <div className="mnc-calib-inputs">
             <label>
               Top Y (%)
-              <input type="number" step="0.1" value={crop.y} onChange={(e) => updateField('y', e.target.value)} />
+              <input type="number" step="0.05" value={crop.y} onChange={(e) => updateField('y', e.target.value)} />
             </label>
             <label>
               Height (%)
-              <input type="number" step="0.1" value={crop.h} onChange={(e) => updateField('h', e.target.value)} />
+              <input type="number" step="0.05" value={crop.h} onChange={(e) => updateField('h', e.target.value)} />
             </label>
             <label>
               Front X (%)
@@ -499,7 +523,7 @@ export default function PvcIdCardMaker() {
             <div>
               <h3>2. Card Preview ({layoutMode === 'tray' ? 'PVC Tray Alignment' : 'A4 Print Layout'})</h3>
               <p className="mnc-muted">
-                Card Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI | Gap: 2mm | Top: 3mm | L/R: 5mm | Border: None
+                Card Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI | Gap: 2mm | Top: 3mm | L/R: 5mm
               </p>
             </div>
             <div className="mnc-preset-row">
@@ -570,7 +594,19 @@ export default function PvcIdCardMaker() {
             </label>
 
             <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              Text Crispness (0–6):
+              Text Size ({textScalePercent}%):
+              <input
+                type="range"
+                min="100"
+                max="114"
+                step="1"
+                value={textScalePercent}
+                onChange={(e) => setTextScalePercent(Number(e.target.value))}
+              />
+            </label>
+
+            <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Text Clarity ({textBoldness}/6):
               <input
                 type="range"
                 min="0"
