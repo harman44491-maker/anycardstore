@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v28_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v30_';
 
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
@@ -33,9 +33,9 @@ const CARD_PRESETS = {
     backX: 50.5,
     w: 42.0,
     photoBox: { x: 10.5, y: 22.3, w: 19.5, h: 37.5 },
-    frontTextBox: { x: 32.5, y: 20.0, w: 43.0, h: 27.5 },
-    frontDisclaimerBox: { x: 33.5, y: 58.5, w: 56.0, h: 23.0 },
-    backTextBox: { x: 4.5, y: 18.0, w: 56.0, h: 39.0 },
+    frontTextBox: { x: 32.5, y: 19.5, w: 45.0, h: 31.0 },
+    frontDisclaimerBox: { x: 33.5, y: 58.0, w: 62.5, h: 25.0 },
+    backTextBox: { x: 4.5, y: 18.0, w: 56.0, h: 42.0 },
     backQrBox: { x: 60.5, y: 18.5, w: 39.0, h: 58.0 },
   },
   voterId: {
@@ -221,7 +221,10 @@ function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
   rCtx.imageSmoothingEnabled = true;
   rCtx.imageSmoothingQuality = 'high';
 
+  const contrastBoost = textBoldness > 0 ? 100 + Math.min(20, textBoldness * 2) : 100;
+  rCtx.filter = `contrast(${contrastBoost}%)`;
   rCtx.drawImage(sourceImg, tx, ty, tw, th, 0, 0, tw, th);
+  rCtx.filter = 'none';
 
   if (textBoldness > 0) {
     const baseRegion = document.createElement('canvas');
@@ -235,20 +238,15 @@ function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
       [-1, 0],
       [0, 1],
       [0, -1],
-      [0.75, 0.75],
-      [-0.75, 0.75],
-      [0.75, -0.75],
-      [-0.75, -0.75],
     ];
 
-    const passes = Math.min(12, Math.max(1, Math.round(textBoldness)));
+    const passes = Math.min(6, Math.max(1, Math.round(textBoldness)));
     rCtx.save();
     rCtx.globalCompositeOperation = 'darken';
-    rCtx.globalAlpha = 0.72;
+    rCtx.globalAlpha = 0.45;
     for (let i = 0; i < passes; i++) {
       const [dx, dy] = dirs[i % dirs.length];
-      const ring = 1 + Math.floor(i / 4) * 0.65;
-      const shift = ring * 0.9 * dpiFactor;
+      const shift = 0.48 * dpiFactor;
       rCtx.drawImage(baseRegion, dx * shift, dy * shift);
     }
     rCtx.restore();
@@ -295,12 +293,8 @@ function applyBoxShrinkAndMove(ctx, sourceImg, box, options) {
   const baseDestX = align === 'center' ? bx + Math.round((bw - newW) / 2) : bx;
   const baseDestY = align === 'center' ? by + Math.round((bh - newH) / 2) : by;
 
-  const rawDestX = baseDestX + Math.round((offsetX / 100) * w);
-  const rawDestY = baseDestY + Math.round((offsetY / 100) * h);
-
-  const minAllowedY = align === 'top-left' ? Math.max(by, rawDestY) : rawDestY;
-  const destX = Math.max(0, Math.min(rawDestX, w - newW));
-  const destY = Math.max(0, Math.min(minAllowedY, h - newH));
+  const destX = baseDestX + Math.round((offsetX / 100) * w);
+  const destY = baseDestY + Math.round((offsetY / 100) * h);
 
   ctx.save();
   ctx.fillStyle = '#ffffff';
@@ -442,22 +436,22 @@ export default function PvcIdCardMaker() {
 
   const [photoBrightness, setPhotoBrightness] = useState(133);
   const [photoContrast, setPhotoContrast] = useState(100);
-  const [textBoldness, setTextBoldness] = useState(7);
-  const [textScale, setTextScale] = useState(124);
+  const [textBoldness, setTextBoldness] = useState(5);
+  const [textScale, setTextScale] = useState(100);
 
-  const [disclaimerScale, setDisclaimerScale] = useState(66);
-  const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(2.0);
-  const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(2.0);
+  const [disclaimerScale, setDisclaimerScale] = useState(100);
+  const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(0);
+  const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(0);
 
   const [backAddressOffsetX, setBackAddressOffsetX] = useState(0);
   const [backAddressOffsetY, setBackAddressOffsetY] = useState(0);
 
-  const [qrScale, setQrScale] = useState(68);
-  const [qrOffsetX, setQrOffsetX] = useState(8);
-  const [qrOffsetY, setQrOffsetY] = useState(2);
+  const [qrScale, setQrScale] = useState(100);
+  const [qrOffsetX, setQrOffsetX] = useState(0);
+  const [qrOffsetY, setQrOffsetY] = useState(0);
 
   const [showBoxesOnCard, setShowBoxesOnCard] = useState(false);
-  const [showBoxTuning, setShowBoxTuning] = useState(true);
+  const [showBoxTuning, setShowBoxTuning] = useState(false);
 
   const [showTextZoomModal, setShowTextZoomModal] = useState(false);
   const [textZoomSide, setTextZoomSide] = useState('front');
@@ -512,10 +506,10 @@ export default function PvcIdCardMaker() {
   };
 
   const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 10.5, y: 22.3, w: 19.5, h: 37.5 };
-  const activeFrontTextBox = crop.frontTextBox || CARD_PRESETS[selectedPreset]?.frontTextBox || { x: 32.5, y: 20.0, w: 43.0, h: 27.5 };
+  const activeFrontTextBox = crop.frontTextBox || CARD_PRESETS[selectedPreset]?.frontTextBox || { x: 32.5, y: 19.5, w: 45.0, h: 31.0 };
   const activeFrontDisclaimerBox =
-    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 33.5, y: 58.5, w: 56.0, h: 23.0 };
-  const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 18.0, w: 56.0, h: 39.0 };
+    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 33.5, y: 58.0, w: 62.5, h: 25.0 };
+  const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 18.0, w: 56.0, h: 42.0 };
   const activeBackQrBox = crop.backQrBox || CARD_PRESETS[selectedPreset]?.backQrBox || { x: 60.5, y: 18.5, w: 39.0, h: 58.0 };
 
   const updateSubBoxField = (boxKey, field, val) => {
@@ -863,7 +857,7 @@ export default function PvcIdCardMaker() {
             <span className="mnc-calib-hint">
               {isVoterMode
                 ? 'e-EPIC Voter PDF 300 DPI aur black bold border ke saath crop hoga (Aadhaar 600 DPI settings par koi asar nahi).'
-                : 'Short ya long naam/address wali kisi bhi Aadhaar PDF ke liye bold text, chota niche disclaimer, aur QR code auto-fit hoga (Card: 90mm × 60mm, Gap: 2mm).'}
+                : 'Har file par safe auto-fit: text/QR stretch ya cut nahi hoga, 600 DPI sharp bold output, card 90mm × 60mm, gap 2mm.'}
             </span>
           </div>
           <div className="mnc-calib-inputs">
@@ -1162,14 +1156,14 @@ export default function PvcIdCardMaker() {
               <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
                 <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
                   <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                    🖋️ Selective Text Bold (3x Power: 0–12) & Unclipped Font Size (Front: Name/DOB • Back: Address):
+                    🖋️ Clean Text Bold (0–12) & Scale (Front: Name/DOB • Back: Address):
                   </strong>
                   <button
                     type="button"
                     className="mnc-btn mnc-btn-ghost"
                     onClick={() => {
-                      setTextBoldness(7);
-                      setTextScale(124);
+                      setTextBoldness(5);
+                      setTextScale(100);
                     }}
                   >
                     Reset Text
@@ -1206,20 +1200,20 @@ export default function PvcIdCardMaker() {
               <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gap: '12px' }}>
                 <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
                   <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                    📐 Resize & Position Controls (Up/Down & Left/Right Move):
+                    📐 Resize & Position Controls (Default 100% / 0% Safe):
                   </strong>
                   <button
                     type="button"
                     className="mnc-btn mnc-btn-ghost"
                     onClick={() => {
-                      setDisclaimerScale(66);
-                      setDisclaimerOffsetX(2.0);
-                      setDisclaimerOffsetY(2.0);
+                      setDisclaimerScale(100);
+                      setDisclaimerOffsetX(0);
+                      setDisclaimerOffsetY(0);
                       setBackAddressOffsetX(0);
                       setBackAddressOffsetY(0);
-                      setQrScale(68);
-                      setQrOffsetX(8);
-                      setQrOffsetY(2);
+                      setQrScale(100);
+                      setQrOffsetX(0);
+                      setQrOffsetY(0);
                     }}
                   >
                     Reset Positions
@@ -1228,7 +1222,7 @@ export default function PvcIdCardMaker() {
 
                 <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fed7aa' }}>
                   <div style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c', marginBottom: '6px' }}>
-                    🟠 1. Front Disclaimer Box (Size & Move):
+                    🟠 1. Front Disclaimer Box (100% Untouched):
                   </div>
                   <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1272,7 +1266,7 @@ export default function PvcIdCardMaker() {
 
                 <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd6fe' }}>
                   <div style={{ fontSize: '12px', fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>
-                    🟣 3. Back QR Code (Size & Move Left/Right, Up/Down):
+                    🟣 3. Back QR Code (100% Untouched Default):
                   </div>
                   <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
