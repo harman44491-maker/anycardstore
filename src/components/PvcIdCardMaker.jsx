@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v2_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v3_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -13,6 +13,7 @@ const AADHAAR_CARD_SPEC = {
   renderScale: AADHAAR_OUTPUT_DPI / 72,
 };
 
+// Larger photoBox presets so the full customer portrait is covered cleanly
 const CARD_PRESETS = {
   eaadhaar: {
     label: 'e-Aadhaar PDF (Bottom Cut)',
@@ -21,7 +22,7 @@ const CARD_PRESETS = {
     frontX: 7.6,
     backX: 50.5,
     w: 42.0,
-    photoBox: { x: 4.5, y: 26.0, w: 23.0, h: 48.0 },
+    photoBox: { x: 3.5, y: 22.0, w: 26.5, h: 55.0 },
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
@@ -30,7 +31,7 @@ const CARD_PRESETS = {
     frontX: 6.0,
     backX: 51.0,
     w: 43.0,
-    photoBox: { x: 5.0, y: 25.0, w: 24.0, h: 48.0 },
+    photoBox: { x: 3.5, y: 21.0, w: 27.5, h: 55.0 },
   },
   panCard: {
     label: 'e-PAN Card PDF',
@@ -39,7 +40,7 @@ const CARD_PRESETS = {
     frontX: 6.0,
     backX: 51.0,
     w: 43.0,
-    photoBox: { x: 5.0, y: 28.0, w: 22.0, h: 44.0 },
+    photoBox: { x: 3.5, y: 24.0, w: 26.0, h: 52.0 },
   },
   eshram: {
     label: 'e-Shram Card PDF',
@@ -48,41 +49,101 @@ const CARD_PRESETS = {
     frontX: 6.0,
     backX: 51.0,
     w: 43.0,
-    photoBox: { x: 5.0, y: 25.0, w: 23.0, h: 48.0 },
+    photoBox: { x: 3.5, y: 21.0, w: 27.0, h: 55.0 },
   },
 };
 
-// Selective brightness/contrast ONLY on the customer photo area (keeps QR & text crisp)
-function applySelectivePhotoEnhance(baseDataUrl, photoBox, brightness, contrast) {
+// Applies:
+// 1) Text Boldness (morphological stroke thickening on dark pixels) + Text Contrast
+// 2) Selective Photo Brightness & Contrast ONLY inside the larger photoBox on the Front card
+function enhanceCardCanvas(baseDataUrl, options) {
+  const {
+    side,
+    photoBox,
+    photoBrightness,
+    photoContrast,
+    textBoldness,
+    textContrast,
+  } = options;
+
   return new Promise((resolve) => {
-    if (brightness === 100 && contrast === 100) {
+    const needsPhotoEdit = side === 'front' && (photoBrightness !== 100 || photoContrast !== 100);
+    const needsTextEdit = textBoldness > 0 || textContrast !== 100;
+
+    if (!needsPhotoEdit && !needsTextEdit) {
       resolve(baseDataUrl);
       return;
     }
 
     const img = new Image();
     img.onload = () => {
+      const w = img.width;
+      const h = img.height;
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
 
-      // Draw full card untouched
-      ctx.drawImage(img, 0, 0);
-
-      // Re-draw ONLY customer photo box with brightness/contrast
-      const px = Math.round((photoBox.x / 100) * img.width);
-      const py = Math.round((photoBox.y / 100) * img.height);
-      const pw = Math.round((photoBox.w / 100) * img.width);
-      const ph = Math.round((photoBox.h / 100) * img.height);
-
+      // Step 1: Draw base card with text contrast if requested
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(px, py, pw, ph);
-      ctx.clip();
-      ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+      if (textContrast !== 100) {
+        ctx.filter = `contrast(${textContrast}%)`;
+      }
       ctx.drawImage(img, 0, 0);
       ctx.restore();
+
+      // Step 2: Text Boldness (thickens dark text strokes without darkening light/white areas)
+      if (textBoldness > 0) {
+        const px = Math.round((photoBox.x / 100) * w);
+        const py = Math.round((photoBox.y / 100) * h);
+        const pw = Math.round((photoBox.w / 100) * w);
+        const ph = Math.round((photoBox.h / 100) * h);
+
+        // Save untouched photo region before bolding text so customer face doesn't get darkened
+        let savedPhotoData = null;
+        if (side === 'front') {
+          savedPhotoData = ctx.getImageData(px, py, pw, ph);
+        }
+
+        // Sub-pixel darken-blend shifts thicken dark text strokes cleanly
+        const offsets = [
+          [0.6, 0],
+          [-0.6, 0],
+          [0, 0.6],
+          [0, -0.6],
+        ];
+        const passes = Math.min(4, Math.max(1, Math.round(textBoldness)));
+        ctx.save();
+        ctx.globalCompositeOperation = 'darken';
+        ctx.globalAlpha = 0.45;
+        for (let i = 0; i < passes; i++) {
+          const [dx, dy] = offsets[i % offsets.length];
+          const step = i >= 2 ? 1.1 : 0.65;
+          ctx.drawImage(canvas, dx * step, dy * step);
+        }
+        ctx.restore();
+
+        // Restore original photo area before applying dedicated photo brightness/contrast
+        if (side === 'front' && savedPhotoData) {
+          ctx.putImageData(savedPhotoData, px, py);
+        }
+      }
+
+      // Step 3: Selective Photo Brightness & Contrast on the expanded photoBox
+      if (side === 'front' && needsPhotoEdit) {
+        const px = Math.round((photoBox.x / 100) * w);
+        const py = Math.round((photoBox.y / 100) * h);
+        const pw = Math.round((photoBox.w / 100) * w);
+        const ph = Math.round((photoBox.h / 100) * h);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(px, py, pw, ph);
+        ctx.clip();
+        ctx.filter = `brightness(${photoBrightness}%) contrast(${photoContrast}%)`;
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+      }
 
       resolve(canvas.toDataURL('image/png'));
     };
@@ -108,6 +169,16 @@ export default function PvcIdCardMaker() {
   const [photoBrightness, setPhotoBrightness] = useState(100);
   const [photoContrast, setPhotoContrast] = useState(100);
   const [showPhotoBoxTuning, setShowPhotoBoxTuning] = useState(false);
+  const [showPhotoGuideOnCard, setShowPhotoGuideOnCard] = useState(false);
+
+  // Text boldness & contrast controls
+  const [textBoldness, setTextBoldness] = useState(0); // 0 to 4
+  const [textContrast, setTextContrast] = useState(100); // 100 to 160
+
+  // Dedicated high-zoom Text Loupe / Magnifier Inspector
+  const [showTextZoomModal, setShowTextZoomModal] = useState(false);
+  const [textZoomSide, setTextZoomSide] = useState('front');
+  const [textZoomLevel, setTextZoomLevel] = useState(2.25);
 
   const [crop, setCrop] = useState(() => {
     try {
@@ -176,7 +247,6 @@ export default function PvcIdCardMaker() {
       const sourceRenderScale = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC.renderScale : 3;
       const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
 
-      // Save lightweight preview of full PDF page for pre-crop visual box alignment
       setFullPdfPreviewUrl(pageCanvas.toDataURL('image/jpeg', 0.85));
 
       const frontUrl = cropPercentToCardCanvas(
@@ -211,7 +281,9 @@ export default function PvcIdCardMaker() {
     }
   };
 
-  // Live update front card whenever photoBrightness, photoContrast, or photoBox changes
+  const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 3.5, y: 22, w: 26.5, h: 55 };
+
+  // Re-render Front & Back whenever Photo Brightness/Contrast OR Text Boldness/Contrast changes
   useEffect(() => {
     if (!rawPair) {
       setCardPair(null);
@@ -219,21 +291,37 @@ export default function PvcIdCardMaker() {
     }
 
     let cancelled = false;
-    const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 4.5, y: 26, w: 23, h: 48 };
 
-    applySelectivePhotoEnhance(rawPair.frontUrl, activePhotoBox, photoBrightness, photoContrast)
-      .then((enhancedFrontUrl) => {
-        if (cancelled) return;
-        setCardPair({
-          ...rawPair,
-          frontUrl: enhancedFrontUrl,
-        });
+    Promise.all([
+      enhanceCardCanvas(rawPair.frontUrl, {
+        side: 'front',
+        photoBox: activePhotoBox,
+        photoBrightness,
+        photoContrast,
+        textBoldness,
+        textContrast,
+      }),
+      enhanceCardCanvas(rawPair.backUrl, {
+        side: 'back',
+        photoBox: activePhotoBox,
+        photoBrightness: 100,
+        photoContrast: 100,
+        textBoldness,
+        textContrast,
+      }),
+    ]).then(([enhancedFrontUrl, enhancedBackUrl]) => {
+      if (cancelled) return;
+      setCardPair({
+        ...rawPair,
+        frontUrl: enhancedFrontUrl,
+        backUrl: enhancedBackUrl,
       });
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [rawPair, photoBrightness, photoContrast, crop.photoBox, selectedPreset]);
+  }, [rawPair, photoBrightness, photoContrast, textBoldness, textContrast, activePhotoBox]);
 
   const downloadSide = (side) => {
     if (!cardPair) return;
@@ -243,13 +331,11 @@ export default function PvcIdCardMaker() {
     link.click();
   };
 
-  const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 4.5, y: 26, w: 23, h: 48 };
-
   return (
     <section>
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Customer ka password aur PDF data sirf browser mein process hota hai.
+          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Photo retouch, Text Bold aur Zoom browser mein hi kaam karte hain.
         </span>
       </div>
 
@@ -348,12 +434,11 @@ export default function PvcIdCardMaker() {
             )}
           </div>
 
-          {/* Pre-crop Full PDF Visual Inspector with Zoom */}
           {fullPdfPreviewUrl && showFullPdfInspector && (
             <div style={{ marginTop: '14px', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #eab308' }}>
               <div className="mnc-row-between" style={{ marginBottom: '8px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 600 }}>
-                  🟢 Green Box = Front Card | 🔵 Blue Box = Back Card (Numbers badal kar box align karein aur dubara Extract dabayein)
+                  🟢 Green Box = Front Card | 🔵 Blue Box = Back Card
                 </span>
                 <div className="pvc-preview-zoom-controls">
                   <button
@@ -379,7 +464,6 @@ export default function PvcIdCardMaker() {
               <div style={{ maxHeight: '420px', overflow: 'auto', border: '1px solid #cbd5e1', textAlign: 'center', background: '#334155', padding: '10px' }}>
                 <div style={{ position: 'relative', display: 'inline-block', width: `${460 * pdfInspectorZoom}px` }}>
                   <img src={fullPdfPreviewUrl} alt="Full PDF Page" style={{ width: '100%', display: 'block' }} />
-                  {/* Front Crop Overlay */}
                   <div
                     style={{
                       position: 'absolute',
@@ -392,7 +476,6 @@ export default function PvcIdCardMaker() {
                       pointerEvents: 'none',
                     }}
                   />
-                  {/* Back Crop Overlay */}
                   <div
                     style={{
                       position: 'absolute',
@@ -454,6 +537,13 @@ export default function PvcIdCardMaker() {
                   +
                 </button>
               </div>
+              <button
+                type="button"
+                className={`mnc-btn ${showTextZoomModal ? 'mnc-btn-primary' : 'mnc-btn-ghost'}`}
+                onClick={() => setShowTextZoomModal((v) => !v)}
+              >
+                🔍 {showTextZoomModal ? 'Close Text Zoom' : 'Zoom Text (Up to 400%)'}
+              </button>
               <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadSide('front')}>
                 ⬇ Front PNG
               </button>
@@ -466,7 +556,74 @@ export default function PvcIdCardMaker() {
             </div>
           </div>
 
-          {/* Selective Photo Brightness & Contrast Bar (Only affects customer photo, NOT QR/text) */}
+          {/* Dedicated High-Zoom Text Loupe Panel (Front & Back Text Inspection) */}
+          {showTextZoomModal && (
+            <div
+              style={{
+                marginTop: '14px',
+                background: '#0f172a',
+                color: '#f8fafc',
+                borderRadius: '10px',
+                padding: '14px 16px',
+              }}
+            >
+              <div className="mnc-row-between" style={{ marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <strong style={{ fontSize: '13px' }}>🔍 Text & Details High-Zoom Inspector:</strong>
+                  <button
+                    type="button"
+                    className={`mnc-btn ${textZoomSide === 'front' ? 'mnc-btn-primary' : 'mnc-btn-ghost'}`}
+                    onClick={() => setTextZoomSide('front')}
+                  >
+                    Front Card Text
+                  </button>
+                  <button
+                    type="button"
+                    className={`mnc-btn ${textZoomSide === 'back' ? 'mnc-btn-primary' : 'mnc-btn-ghost'}`}
+                    onClick={() => setTextZoomSide('back')}
+                  >
+                    Back Card Text (Address/PIN)
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px' }}>Zoom ({Math.round(textZoomLevel * 100)}%):</span>
+                  <input
+                    type="range"
+                    min="1.5"
+                    max="4"
+                    step="0.25"
+                    value={textZoomLevel}
+                    onChange={(e) => setTextZoomLevel(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  maxHeight: '340px',
+                  overflow: 'auto',
+                  background: '#1e293b',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  border: '1px solid #334155',
+                }}
+              >
+                <img
+                  src={textZoomSide === 'front' ? cardPair.frontUrl : cardPair.backUrl}
+                  alt="Zoomed Card Text"
+                  style={{
+                    width: `${420 * textZoomLevel}px`,
+                    height: 'auto',
+                    display: 'block',
+                    borderRadius: '6px',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Photo Retouch (Larger Box) + Text Boldness & Contrast Controls */}
           <div
             style={{
               marginTop: '14px',
@@ -474,84 +631,159 @@ export default function PvcIdCardMaker() {
               border: '1px solid #cbd5e1',
               borderRadius: '10px',
               padding: '12px 16px',
+              display: 'grid',
+              gap: '14px',
             }}
           >
-            <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
-              <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                ✨ Customer Photo Brightness & Contrast (Sirf Photo Saaf Karein, Text & QR Untouched):
-              </strong>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  type="button"
-                  className="mnc-btn mnc-btn-ghost"
-                  onClick={() => setShowPhotoBoxTuning((v) => !v)}
-                >
-                  {showPhotoBoxTuning ? 'Hide Photo Area' : '⚙ Photo Area Box'}
-                </button>
+            {/* Row A: Expanded Customer Photo Brightness & Contrast */}
+            <div>
+              <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
+                <strong style={{ fontSize: '13px', color: '#0f172a' }}>
+                  ✨ Customer Photo Brightness & Contrast (Expanded Full-Photo Selection):
+                </strong>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="mnc-btn mnc-btn-ghost"
+                    onClick={() => setShowPhotoGuideOnCard((v) => !v)}
+                  >
+                    {showPhotoGuideOnCard ? 'Hide Photo Box' : '👁️ Show Photo Box'}
+                  </button>
+                  <button
+                    type="button"
+                    className="mnc-btn mnc-btn-ghost"
+                    onClick={() => setShowPhotoBoxTuning((v) => !v)}
+                  >
+                    {showPhotoBoxTuning ? 'Hide Box Size' : '⚙ Resize Photo Box'}
+                  </button>
+                  <button
+                    type="button"
+                    className="mnc-btn mnc-btn-ghost"
+                    onClick={() => {
+                      setPhotoBrightness(100);
+                      setPhotoContrast(100);
+                    }}
+                  >
+                    Reset Photo
+                  </button>
+                </div>
+              </div>
+
+              <div className="mnc-controls-row" style={{ marginTop: '8px', justifyContent: 'flex-start', gap: '24px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Photo Brightness ({photoBrightness}%):
+                  <input
+                    type="range"
+                    min="80"
+                    max="170"
+                    value={photoBrightness}
+                    onChange={(e) => setPhotoBrightness(Number(e.target.value))}
+                  />
+                </label>
+
+                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Photo Contrast ({photoContrast}%):
+                  <input
+                    type="range"
+                    min="80"
+                    max="150"
+                    value={photoContrast}
+                    onChange={(e) => setPhotoContrast(Number(e.target.value))}
+                  />
+                </label>
+              </div>
+
+              {showPhotoBoxTuning && (
+                <div className="mnc-calib-inputs" style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
+                  <label>
+                    Photo Left X (%)
+                    <input type="number" step="0.5" value={activePhotoBox.x} onChange={(e) => updatePhotoBoxField('x', e.target.value)} />
+                  </label>
+                  <label>
+                    Photo Top Y (%)
+                    <input type="number" step="0.5" value={activePhotoBox.y} onChange={(e) => updatePhotoBoxField('y', e.target.value)} />
+                  </label>
+                  <label>
+                    Photo Width (%)
+                    <input type="number" step="0.5" value={activePhotoBox.w} onChange={(e) => updatePhotoBoxField('w', e.target.value)} />
+                  </label>
+                  <label>
+                    Photo Height (%)
+                    <input type="number" step="0.5" value={activePhotoBox.h} onChange={(e) => updatePhotoBoxField('h', e.target.value)} />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* Row B: Text Boldness & Contrast (Front & Back Card Text) */}
+            <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+              <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
+                <strong style={{ fontSize: '13px', color: '#0f172a' }}>
+                  🖋️ Card Text Bold & Darkness (Halke Text ko Mota aur Dark Karein):
+                </strong>
                 <button
                   type="button"
                   className="mnc-btn mnc-btn-ghost"
                   onClick={() => {
-                    setPhotoBrightness(100);
-                    setPhotoContrast(100);
+                    setTextBoldness(0);
+                    setTextContrast(100);
                   }}
                 >
-                  Reset Photo (100%)
+                  Reset Text
                 </button>
               </div>
-            </div>
 
-            <div className="mnc-controls-row" style={{ marginTop: '10px', justifyContent: 'flex-start', gap: '24px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                Photo Brightness ({photoBrightness}%):
-                <input
-                  type="range"
-                  min="80"
-                  max="170"
-                  value={photoBrightness}
-                  onChange={(e) => setPhotoBrightness(Number(e.target.value))}
-                />
-              </label>
+              <div className="mnc-controls-row" style={{ marginTop: '8px', justifyContent: 'flex-start', gap: '24px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Text Boldness ({textBoldness === 0 ? 'Normal' : `Level ${textBoldness}`}):
+                  <input
+                    type="range"
+                    min="0"
+                    max="4"
+                    step="1"
+                    value={textBoldness}
+                    onChange={(e) => setTextBoldness(Number(e.target.value))}
+                  />
+                </label>
 
-              <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                Photo Contrast ({photoContrast}%):
-                <input
-                  type="range"
-                  min="80"
-                  max="150"
-                  value={photoContrast}
-                  onChange={(e) => setPhotoContrast(Number(e.target.value))}
-                />
-              </label>
-            </div>
-
-            {showPhotoBoxTuning && (
-              <div className="mnc-calib-inputs" style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
-                <label>
-                  Photo Left X (%)
-                  <input type="number" step="0.5" value={activePhotoBox.x} onChange={(e) => updatePhotoBoxField('x', e.target.value)} />
-                </label>
-                <label>
-                  Photo Top Y (%)
-                  <input type="number" step="0.5" value={activePhotoBox.y} onChange={(e) => updatePhotoBoxField('y', e.target.value)} />
-                </label>
-                <label>
-                  Photo Width (%)
-                  <input type="number" step="0.5" value={activePhotoBox.w} onChange={(e) => updatePhotoBoxField('w', e.target.value)} />
-                </label>
-                <label>
-                  Photo Height (%)
-                  <input type="number" step="0.5" value={activePhotoBox.h} onChange={(e) => updatePhotoBoxField('h', e.target.value)} />
+                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Text Contrast ({textContrast}%):
+                  <input
+                    type="range"
+                    min="100"
+                    max="160"
+                    step="5"
+                    value={textContrast}
+                    onChange={(e) => setTextContrast(Number(e.target.value))}
+                  />
                 </label>
               </div>
-            )}
+            </div>
           </div>
 
+          {/* Printable Card Stage */}
           <div
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet`}
             style={{ '--pvc-preview-zoom': previewZoom }}
           >
-            <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
+              {showPhotoGuideOnCard && (
+                <div
+                  className="no-print"
+                  style={{
+                    position: 'absolute',
+                    left: `${activePhotoBox.x}%`,
+                    top: `${activePhotoBox.y}%`,
+                    width: `${activePhotoBox.w}%`,
+                    height: `${activePhotoBox.h}%`,
+                    border: '2px dashed #ef4444',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    pointerEvents: 'none',
+                  }}
+                />
+              )}
+            </div>
             <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
           </div>
         </div>
