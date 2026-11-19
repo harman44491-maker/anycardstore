@@ -3,6 +3,15 @@ import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRend
 import { SHOP_CONFIG } from '../config/shopConfig';
 
 const PVC_STORAGE_KEY = 'mnc_pvc_card_calibration_v1';
+const AADHAAR_OUTPUT_DPI = 600;
+const AADHAAR_CARD_SPEC = {
+  widthMm: 85.6,
+  heightMm: 54,
+  dpi: AADHAAR_OUTPUT_DPI,
+  pxWidth: Math.round((85.6 * AADHAAR_OUTPUT_DPI) / 25.4),
+  pxHeight: Math.round((54 * AADHAAR_OUTPUT_DPI) / 25.4),
+  renderScale: AADHAAR_OUTPUT_DPI / 72,
+};
 
 const CARD_PRESETS = {
   eaadhaar: {
@@ -62,6 +71,8 @@ export default function PvcIdCardMaker() {
   });
 
   const [cardPair, setCardPair] = useState(null);
+  const outputSpec = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC : SHOP_CONFIG.cr80CardSpec;
+  const outputDpi = selectedPreset === 'eaadhaar' ? AADHAAR_OUTPUT_DPI : 300;
 
   useEffect(() => {
     try {
@@ -94,8 +105,9 @@ export default function PvcIdCardMaker() {
     setErrorMsg('');
 
     try {
-      const { pxWidth, pxHeight } = SHOP_CONFIG.cr80CardSpec;
-      const pageCanvas = await renderPdfPageToCanvas(pdfFile, 3, pdfPassword.trim());
+      const { pxWidth, pxHeight } = outputSpec;
+      const sourceRenderScale = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC.renderScale : 3;
+      const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
 
       const frontUrl = cropPercentToCardCanvas(
         pageCanvas,
@@ -114,6 +126,9 @@ export default function PvcIdCardMaker() {
         name: pdfFile.name.replace(/\.pdf$/i, ''),
         frontUrl,
         backUrl,
+        dpi: outputDpi,
+        widthMm: outputSpec.widthMm || 85.6,
+        heightMm: outputSpec.heightMm || 54,
       });
     } catch (err) {
       if (err?.name === 'PasswordException') {
@@ -130,7 +145,7 @@ export default function PvcIdCardMaker() {
     if (!cardPair) return;
     const link = document.createElement('a');
     link.href = side === 'front' ? cardPair.frontUrl : cardPair.backUrl;
-    link.download = `${cardPair.name}_${side}_CR80.png`;
+    link.download = `${cardPair.name}_${side}_${cardPair.dpi}dpi.png`;
     link.click();
   };
 
@@ -138,7 +153,7 @@ export default function PvcIdCardMaker() {
     <section>
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing (300 DPI):</strong> Customer ka Aadhaar password aur PDF data sirf aapke browser mein process hota hai — server par kuch bhi upload nahi hota.
+          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Customer ka password aur PDF data sirf browser mein process hota hai.
         </span>
       </div>
 
@@ -230,7 +245,7 @@ export default function PvcIdCardMaker() {
 
         <div style={{ marginTop: '16px' }}>
           <button type="button" className="mnc-btn mnc-btn-primary" disabled={loading} onClick={handleExtract}>
-            {loading ? '⏳ Unlocking & Cropping (300 DPI)...' : '⚡ Extract Front & Back Card'}
+            {loading ? `⏳ Unlocking & Cropping (${outputDpi} DPI)...` : '⚡ Extract Front & Back Card'}
           </button>
         </div>
       </div>
@@ -240,7 +255,7 @@ export default function PvcIdCardMaker() {
           <div className="mnc-row-between">
             <div>
               <h3>2. Card Preview ({layoutMode === 'tray' ? 'PVC Tray Alignment' : 'A4 Print Layout'})</h3>
-              <p className="mnc-muted">Exact CR80 Size: 85.6mm × 54mm @ 300 DPI</p>
+              <p className="mnc-muted">Exact CR80 Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI</p>
             </div>
             <div className="mnc-preset-row">
               <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadSide('front')}>
