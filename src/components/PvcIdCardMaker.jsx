@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v14_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v15_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -22,10 +22,10 @@ const CARD_PRESETS = {
     backX: 50.5,
     w: 42.0,
     photoBox: { x: 10.5, y: 22.3, w: 19.5, h: 37.5 },
-    frontTextBox: { x: 32.5, y: 20.5, w: 36, h: 19.5 },
-    frontDisclaimerBox: { x: 32, y: 40.5, w: 65, h: 35.5 },
-    backTextBox: { x: 4.5, y: 23, w: 55, h: 20.5 },
-    backQrBox: { x: 60.5, y: 19.5, w: 39, h: 56 },
+    frontTextBox: { x: 32.5, y: 20.5, w: 41, h: 28 },
+    frontDisclaimerBox: { x: 33.5, y: 45, w: 65, h: 36.5 },
+    backTextBox: { x: 4.5, y: 19.5, w: 55, h: 43 },
+    backQrBox: { x: 60.5, y: 18.5, w: 39, h: 58 },
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
@@ -300,7 +300,7 @@ export default function PvcIdCardMaker() {
   const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(12);
 
   const [backAddressOffsetX, setBackAddressOffsetX] = useState(0);
-  const [backAddressOffsetY, setBackAddressOffsetY] = useState(0);
+  const [backAddressOffsetY, setBackAddressOffsetY] = useState(-0.5);
 
   const [qrScale, setQrScale] = useState(65);
   const [qrOffsetX, setQrOffsetX] = useState(9);
@@ -355,11 +355,11 @@ export default function PvcIdCardMaker() {
   };
 
   const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 10.5, y: 22.3, w: 19.5, h: 37.5 };
-  const activeFrontTextBox = crop.frontTextBox || CARD_PRESETS[selectedPreset]?.frontTextBox || { x: 32.5, y: 20.5, w: 36, h: 19.5 };
+  const activeFrontTextBox = crop.frontTextBox || CARD_PRESETS[selectedPreset]?.frontTextBox || { x: 32.5, y: 20.5, w: 41, h: 28 };
   const activeFrontDisclaimerBox =
-    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 32, y: 40.5, w: 65, h: 35.5 };
-  const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 23, w: 55, h: 20.5 };
-  const activeBackQrBox = crop.backQrBox || CARD_PRESETS[selectedPreset]?.backQrBox || { x: 60.5, y: 19.5, w: 39, h: 56 };
+    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 33.5, y: 45, w: 65, h: 36.5 };
+  const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 19.5, w: 55, h: 43 };
+  const activeBackQrBox = crop.backQrBox || CARD_PRESETS[selectedPreset]?.backQrBox || { x: 60.5, y: 18.5, w: 39, h: 58 };
 
   const updateSubBoxField = (boxKey, field, val) => {
     const num = parseFloat(val);
@@ -1007,7 +1007,7 @@ export default function PvcIdCardMaker() {
                     setDisclaimerOffsetX(7.5);
                     setDisclaimerOffsetY(12);
                     setBackAddressOffsetX(0);
-                    setBackAddressOffsetY(0);
+                    setBackAddressOffsetY(-0.5);
                     setQrScale(65);
                     setQrOffsetX(9);
                     setQrOffsetY(3.5);
