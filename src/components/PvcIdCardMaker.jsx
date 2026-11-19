@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v6_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v7_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -13,6 +13,7 @@ const AADHAAR_CARD_SPEC = {
   renderScale: AADHAAR_OUTPUT_DPI / 72,
 };
 
+// Exact calibrated boxes from user screenshot for e-Aadhaar
 const CARD_PRESETS = {
   eaadhaar: {
     label: 'e-Aadhaar PDF (Bottom Cut)',
@@ -21,11 +22,11 @@ const CARD_PRESETS = {
     frontX: 7.6,
     backX: 50.5,
     w: 42.0,
-    photoBox: { x: 11, y: 22.8, w: 19.5, h: 37.5 },
-    frontTextBox: { x: 32.5, y: 19.5, w: 45.5, h: 21 },
-    frontDisclaimerBox: { x: 32.5, y: 41.5, w: 59.0, h: 24.5 },
-    backTextBox: { x: 4.5, y: 21.5, w: 54.5, h: 27.5 },
-    backQrBox: { x: 60.5, y: 19.5, w: 32.5, h: 52.0 },
+    photoBox: { x: 10.5, y: 22.3, w: 19.5, h: 37.5 },
+    frontTextBox: { x: 32.5, y: 20.5, w: 36, h: 19.5 },
+    frontDisclaimerBox: { x: 32.5, y: 40.5, w: 65, h: 32 },
+    backTextBox: { x: 4.5, y: 23, w: 55, h: 20.5 },
+    backQrBox: { x: 60, y: 19.5, w: 36, h: 55 },
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
@@ -68,7 +69,9 @@ const CARD_PRESETS = {
   },
 };
 
-function applySelectiveTextBoldAndScale(ctx, sourceImg, box, textBoldness, textScalePercent) {
+// 3x stronger Boldness (Levels 0 to 12) + Unclipped Font Size Scale + Position Offset (offsetX%, offsetY%)
+function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
+  const { textBoldness, textScalePercent, offsetX = 0, offsetY = 0 } = options;
   const w = sourceImg.width;
   const h = sourceImg.height;
   const tx = Math.round((box.x / 100) * w);
@@ -87,47 +90,62 @@ function applySelectiveTextBoldAndScale(ctx, sourceImg, box, textBoldness, textS
 
   rCtx.drawImage(sourceImg, tx, ty, tw, th, 0, 0, tw, th);
 
+  // 3x stronger bolding calibrated for 600 DPI cards
   if (textBoldness > 0) {
     const baseRegion = document.createElement('canvas');
     baseRegion.width = tw;
     baseRegion.height = th;
     baseRegion.getContext('2d').drawImage(regionCanvas, 0, 0);
 
-    const offsets = [
-      [0.65, 0],
-      [-0.65, 0],
-      [0, 0.65],
-      [0, -0.65],
+    // Scale radius with image resolution (at 600 DPI, 2022px wide -> strong crisp ink thickness)
+    const dpiFactor = Math.max(1, w / 1011);
+    const dirs = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+      [0.75, 0.75],
+      [-0.75, 0.75],
+      [0.75, -0.75],
+      [-0.75, -0.75],
     ];
-    const passes = Math.min(4, Math.max(1, Math.round(textBoldness)));
+
+    const passes = Math.min(12, Math.max(1, Math.round(textBoldness)));
     rCtx.save();
     rCtx.globalCompositeOperation = 'darken';
-    rCtx.globalAlpha = 0.52;
+    rCtx.globalAlpha = 0.65;
     for (let i = 0; i < passes; i++) {
-      const [dx, dy] = offsets[i % offsets.length];
-      const mult = i >= 2 ? 1.2 : 0.7;
-      rCtx.drawImage(baseRegion, dx * mult, dy * mult);
+      const [dx, dy] = dirs[i % dirs.length];
+      const ring = 1 + Math.floor(i / 4) * 0.65;
+      const shift = ring * 0.85 * dpiFactor;
+      rCtx.drawImage(baseRegion, dx * shift, dy * shift);
     }
     rCtx.restore();
   }
 
-  const scale = textScalePercent / 100;
+  // Clear original box with white
   ctx.save();
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(tx, ty, tw, th);
 
-  ctx.beginPath();
-  ctx.rect(tx, ty, tw, th);
-  ctx.clip();
+  // Draw enlarged/moved text WITHOUT clipping box boundaries so enlarged letters NEVER cut off!
+  const scale = textScalePercent / 100;
+  const destX = tx + Math.round((offsetX / 100) * w);
+  const destY = ty + Math.round((offsetY / 100) * h);
+  const destW = Math.round(tw * scale);
+  const destH = Math.round(th * scale);
+
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(regionCanvas, 0, 0, tw, th, tx, ty, Math.round(tw * scale), Math.round(th * scale));
+  ctx.drawImage(regionCanvas, 0, 0, tw, th, destX, destY, destW, destH);
   ctx.restore();
 }
 
-// Shrinks a target box (Front Disclaimer box or Back QR box) cleanly and fills vacated area with white
-function applyBoxShrink(ctx, sourceImg, box, scalePercent, align = 'top-left') {
-  if (!box || scalePercent >= 100) return;
+// Shrink & Reposition (Up/Down, Left/Right) for Front Disclaimer Box and Back QR Code
+function applyBoxShrinkAndMove(ctx, sourceImg, box, options) {
+  const { scalePercent = 100, offsetX = 0, offsetY = 0, align = 'top-left' } = options;
+  if (!box) return;
+  if (scalePercent === 100 && offsetX === 0 && offsetY === 0) return;
 
   const w = sourceImg.width;
   const h = sourceImg.height;
@@ -142,15 +160,17 @@ function applyBoxShrink(ctx, sourceImg, box, scalePercent, align = 'top-left') {
   const newW = Math.round(bw * scale);
   const newH = Math.round(bh * scale);
 
-  const destX = align === 'center' ? bx + Math.round((bw - newW) / 2) : bx;
-  const destY = align === 'center' ? by + Math.round((bh - newH) / 2) : by;
+  const baseDestX = align === 'center' ? bx + Math.round((bw - newW) / 2) : bx;
+  const baseDestY = align === 'center' ? by + Math.round((bh - newH) / 2) : by;
+
+  const destX = baseDestX + Math.round((offsetX / 100) * w);
+  const destY = baseDestY + Math.round((offsetY / 100) * h);
 
   ctx.save();
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(bx, by, bw, bh);
 
   ctx.imageSmoothingEnabled = true;
-  // Keep QR edges crisp when shrinking QR code
   ctx.imageSmoothingQuality = align === 'center' ? 'medium' : 'high';
   ctx.drawImage(sourceImg, bx, by, bw, bh, destX, destY, newW, newH);
   ctx.restore();
@@ -169,16 +189,25 @@ function enhanceCardCanvas(baseDataUrl, options) {
     textBoldness,
     textScale,
     disclaimerScale,
+    disclaimerOffsetX,
+    disclaimerOffsetY,
+    backAddressOffsetX,
+    backAddressOffsetY,
     qrScale,
+    qrOffsetX,
+    qrOffsetY,
   } = options;
 
   return new Promise((resolve) => {
     const needsPhotoEdit = side === 'front' && (photoBrightness !== 100 || photoContrast !== 100);
-    const needsTextEdit = textBoldness > 0 || textScale !== 100;
-    const needsFrontShrink = side === 'front' && disclaimerScale < 100;
-    const needsBackShrink = side === 'back' && qrScale < 100;
+    const needsFrontTextEdit = side === 'front' && (textBoldness > 0 || textScale !== 100);
+    const needsFrontDisclaimerEdit =
+      side === 'front' && (disclaimerScale !== 100 || disclaimerOffsetX !== 0 || disclaimerOffsetY !== 0);
+    const needsBackTextEdit =
+      side === 'back' && (textBoldness > 0 || textScale !== 100 || backAddressOffsetX !== 0 || backAddressOffsetY !== 0);
+    const needsBackQrEdit = side === 'back' && (qrScale !== 100 || qrOffsetX !== 0 || qrOffsetY !== 0);
 
-    if (!needsPhotoEdit && !needsTextEdit && !needsFrontShrink && !needsBackShrink) {
+    if (!needsPhotoEdit && !needsFrontTextEdit && !needsFrontDisclaimerEdit && !needsBackTextEdit && !needsBackQrEdit) {
       resolve(baseDataUrl);
       return;
     }
@@ -210,22 +239,43 @@ function enhanceCardCanvas(baseDataUrl, options) {
           ctx.restore();
         }
 
-        if (needsTextEdit && frontTextBox) {
-          applySelectiveTextBoldAndScale(ctx, img, frontTextBox, textBoldness, textScale);
+        // Move/Shrink disclaimer first so enlarged Name/DOB text stays cleanly visible above it
+        if (needsFrontDisclaimerEdit && frontDisclaimerBox) {
+          applyBoxShrinkAndMove(ctx, img, frontDisclaimerBox, {
+            scalePercent: disclaimerScale,
+            offsetX: disclaimerOffsetX,
+            offsetY: disclaimerOffsetY,
+            align: 'top-left',
+          });
         }
 
-        if (needsFrontShrink && frontDisclaimerBox) {
-          applyBoxShrink(ctx, img, frontDisclaimerBox, disclaimerScale, 'top-left');
+        if (needsFrontTextEdit && frontTextBox) {
+          applySelectiveTextBoldScaleAndMove(ctx, img, frontTextBox, {
+            textBoldness,
+            textScalePercent: textScale,
+            offsetX: 0,
+            offsetY: 0,
+          });
         }
       }
 
       if (side === 'back') {
-        if (needsTextEdit && backTextBox) {
-          applySelectiveTextBoldAndScale(ctx, img, backTextBox, textBoldness, textScale);
+        if (needsBackQrEdit && backQrBox) {
+          applyBoxShrinkAndMove(ctx, img, backQrBox, {
+            scalePercent: qrScale,
+            offsetX: qrOffsetX,
+            offsetY: qrOffsetY,
+            align: 'center',
+          });
         }
 
-        if (needsBackShrink && backQrBox) {
-          applyBoxShrink(ctx, img, backQrBox, qrScale, 'center');
+        if (needsBackTextEdit && backTextBox) {
+          applySelectiveTextBoldScaleAndMove(ctx, img, backTextBox, {
+            textBoldness,
+            textScalePercent: textScale,
+            offsetX: backAddressOffsetX,
+            offsetY: backAddressOffsetY,
+          });
         }
       }
 
@@ -248,14 +298,23 @@ export default function PvcIdCardMaker() {
   const [showFullPdfInspector, setShowFullPdfInspector] = useState(false);
   const [pdfInspectorZoom, setPdfInspectorZoom] = useState(1);
 
+  // Photo & Text Enhancement Controls
   const [photoBrightness, setPhotoBrightness] = useState(133);
   const [photoContrast, setPhotoContrast] = useState(100);
-  const [textBoldness, setTextBoldness] = useState(4);
-  const [textScale, setTextScale] = useState(100);
+  const [textBoldness, setTextBoldness] = useState(4); // 0 to 12 (3x stronger)
+  const [textScale, setTextScale] = useState(100); // 100% to 140% unclipped font scale
 
-  // Shrink controls for Front Disclaimer box (Image 1) & Back QR Code (Image 2)
-  const [disclaimerScale, setDisclaimerScale] = useState(100); // 65% to 100%
-  const [qrScale, setQrScale] = useState(100); // 65% to 100%
+  // Shrink + Position Offset (Up/Down & Left/Right) Controls
+  const [disclaimerScale, setDisclaimerScale] = useState(100);
+  const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(0);
+  const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(0);
+
+  const [backAddressOffsetX, setBackAddressOffsetX] = useState(0);
+  const [backAddressOffsetY, setBackAddressOffsetY] = useState(0);
+
+  const [qrScale, setQrScale] = useState(65);
+  const [qrOffsetX, setQrOffsetX] = useState(0);
+  const [qrOffsetY, setQrOffsetY] = useState(0);
 
   const [showBoxesOnCard, setShowBoxesOnCard] = useState(false);
   const [showBoxTuning, setShowBoxTuning] = useState(false);
@@ -305,12 +364,12 @@ export default function PvcIdCardMaker() {
     }));
   };
 
-  const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 11, y: 22.8, w: 19.5, h: 37.5 };
-  const activeFrontTextBox = crop.frontTextBox || CARD_PRESETS[selectedPreset]?.frontTextBox || { x: 32.5, y: 19.5, w: 45.5, h: 21 };
+  const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 10.5, y: 22.3, w: 19.5, h: 37.5 };
+  const activeFrontTextBox = crop.frontTextBox || CARD_PRESETS[selectedPreset]?.frontTextBox || { x: 32.5, y: 20.5, w: 36, h: 19.5 };
   const activeFrontDisclaimerBox =
-    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 32.5, y: 41.5, w: 59.0, h: 24.5 };
-  const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 21.5, w: 54.5, h: 27.5 };
-  const activeBackQrBox = crop.backQrBox || CARD_PRESETS[selectedPreset]?.backQrBox || { x: 60.5, y: 19.5, w: 32.5, h: 52.0 };
+    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 32.5, y: 40.5, w: 65, h: 32 };
+  const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 23, w: 55, h: 20.5 };
+  const activeBackQrBox = crop.backQrBox || CARD_PRESETS[selectedPreset]?.backQrBox || { x: 60, y: 19.5, w: 36, h: 55 };
 
   const updateSubBoxField = (boxKey, field, val) => {
     const num = parseFloat(val);
@@ -387,35 +446,29 @@ export default function PvcIdCardMaker() {
 
     let cancelled = false;
 
+    const commonOpts = {
+      photoBox: activePhotoBox,
+      frontTextBox: activeFrontTextBox,
+      frontDisclaimerBox: activeFrontDisclaimerBox,
+      backTextBox: activeBackTextBox,
+      backQrBox: activeBackQrBox,
+      photoBrightness,
+      photoContrast,
+      textBoldness,
+      textScale,
+      disclaimerScale,
+      disclaimerOffsetX,
+      disclaimerOffsetY,
+      backAddressOffsetX,
+      backAddressOffsetY,
+      qrScale,
+      qrOffsetX,
+      qrOffsetY,
+    };
+
     Promise.all([
-      enhanceCardCanvas(rawPair.frontUrl, {
-        side: 'front',
-        photoBox: activePhotoBox,
-        frontTextBox: activeFrontTextBox,
-        frontDisclaimerBox: activeFrontDisclaimerBox,
-        backTextBox: activeBackTextBox,
-        backQrBox: activeBackQrBox,
-        photoBrightness,
-        photoContrast,
-        textBoldness,
-        textScale,
-        disclaimerScale,
-        qrScale,
-      }),
-      enhanceCardCanvas(rawPair.backUrl, {
-        side: 'back',
-        photoBox: activePhotoBox,
-        frontTextBox: activeFrontTextBox,
-        frontDisclaimerBox: activeFrontDisclaimerBox,
-        backTextBox: activeBackTextBox,
-        backQrBox: activeBackQrBox,
-        photoBrightness: 100,
-        photoContrast: 100,
-        textBoldness,
-        textScale,
-        disclaimerScale,
-        qrScale,
-      }),
+      enhanceCardCanvas(rawPair.frontUrl, { side: 'front', ...commonOpts }),
+      enhanceCardCanvas(rawPair.backUrl, { side: 'back', ...commonOpts }),
     ]).then(([enhancedFrontUrl, enhancedBackUrl]) => {
       if (cancelled) return;
       setCardPair({
@@ -435,7 +488,13 @@ export default function PvcIdCardMaker() {
     textBoldness,
     textScale,
     disclaimerScale,
+    disclaimerOffsetX,
+    disclaimerOffsetY,
+    backAddressOffsetX,
+    backAddressOffsetY,
     qrScale,
+    qrOffsetX,
+    qrOffsetY,
     activePhotoBox,
     activeFrontTextBox,
     activeFrontDisclaimerBox,
@@ -455,7 +514,7 @@ export default function PvcIdCardMaker() {
     <section>
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Photo retouch, Name/DOB/Address Text Bold & Font Size, aur Disclaimer/QR Shrink browser mein hi kaam karte hain.
+          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Photo retouch, 3x Text Bold, Unclipped Font Size, aur Box Position browser mein hi kaam karte hain.
         </span>
       </div>
 
@@ -812,11 +871,11 @@ export default function PvcIdCardMaker() {
               </div>
             </div>
 
-            {/* Row B: Selective Text Boldness & Font Size */}
+            {/* Row B: 3x Stronger Text Boldness (0-12) & Unclipped Font Size */}
             <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
               <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
                 <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                  🖋️ Selective Text Bold & Font Size (Front: Name/DOB/Gender • Back: Address):
+                  🖋️ Selective Text Bold (3x Power: 0–12) & Unclipped Font Size (Front: Name/DOB • Back: Address):
                 </strong>
                 <button
                   type="button"
@@ -832,11 +891,11 @@ export default function PvcIdCardMaker() {
 
               <div className="mnc-controls-row" style={{ marginTop: '8px', justifyContent: 'flex-start', gap: '24px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Text Boldness ({textBoldness === 0 ? 'Normal' : `Level ${textBoldness}`}):
+                  Text Boldness ({textBoldness === 0 ? 'Normal' : `Level ${textBoldness} / 12`}):
                   <input
                     type="range"
                     min="0"
-                    max="4"
+                    max="12"
                     step="1"
                     value={textBoldness}
                     onChange={(e) => setTextBoldness(Number(e.target.value))}
@@ -848,7 +907,7 @@ export default function PvcIdCardMaker() {
                   <input
                     type="range"
                     min="100"
-                    max="135"
+                    max="140"
                     step="2"
                     value={textScale}
                     onChange={(e) => setTextScale(Number(e.target.value))}
@@ -857,52 +916,103 @@ export default function PvcIdCardMaker() {
               </div>
             </div>
 
-            {/* Row C: Shrink Front Disclaimer Box & Back QR Code */}
-            <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+            {/* Row C: Shrink + Up/Down & Left/Right Move for Front Disclaimer, Back Address & Back QR */}
+            <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gap: '12px' }}>
               <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
                 <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                  📐 Shrink Boxes (Front Disclaimer Box & Back QR Code Chhota Karein):
+                  📐 Resize & Position Controls (Up/Down & Left/Right Move):
                 </strong>
                 <button
                   type="button"
                   className="mnc-btn mnc-btn-ghost"
                   onClick={() => {
                     setDisclaimerScale(100);
-                    setQrScale(100);
+                    setDisclaimerOffsetX(0);
+                    setDisclaimerOffsetY(0);
+                    setBackAddressOffsetX(0);
+                    setBackAddressOffsetY(0);
+                    setQrScale(65);
+                    setQrOffsetX(0);
+                    setQrOffsetY(0);
                   }}
                 >
-                  Reset Shrink (100%)
+                  Reset Positions
                 </button>
               </div>
 
-              <div className="mnc-controls-row" style={{ marginTop: '8px', justifyContent: 'flex-start', gap: '24px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Front Disclaimer Box Size ({disclaimerScale}%):
-                  <input
-                    type="range"
-                    min="65"
-                    max="100"
-                    step="1"
-                    value={disclaimerScale}
-                    onChange={(e) => setDisclaimerScale(Number(e.target.value))}
-                  />
-                </label>
+              {/* 1. Front Disclaimer Text Size + Left/Right + Up/Down */}
+              <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fed7aa' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c', marginBottom: '6px' }}>
+                  🟠 1. Front Disclaimer Box (Size & Move):
+                </div>
+                <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Size ({disclaimerScale}%):
+                    <input type="range" min="65" max="100" step="1" value={disclaimerScale} onChange={(e) => setDisclaimerScale(Number(e.target.value))} />
+                  </label>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Left / Right ({disclaimerOffsetX}%):
+                    <input type="range" min="-15" max="15" step="0.5" value={disclaimerOffsetX} onChange={(e) => setDisclaimerOffsetX(Number(e.target.value))} />
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetX((v) => +(v - 0.5).toFixed(1))}>◀</button>
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetX((v) => +(v + 0.5).toFixed(1))}>▶</button>
+                  </label>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Up / Down ({disclaimerOffsetY}%):
+                    <input type="range" min="-15" max="15" step="0.5" value={disclaimerOffsetY} onChange={(e) => setDisclaimerOffsetY(Number(e.target.value))} />
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetY((v) => +(v - 0.5).toFixed(1))}>▲</button>
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setDisclaimerOffsetY((v) => +(v + 0.5).toFixed(1))}>▼</button>
+                  </label>
+                </div>
+              </div>
 
-                <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Back QR Code Size ({qrScale}%):
-                  <input
-                    type="range"
-                    min="65"
-                    max="100"
-                    step="1"
-                    value={qrScale}
-                    onChange={(e) => setQrScale(Number(e.target.value))}
-                  />
-                </label>
+              {/* 2. Back Address Text Left/Right + Up/Down */}
+              <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1d4ed8', marginBottom: '6px' }}>
+                  🔵 2. Back Address Text (Move Left/Right & Up/Down):
+                </div>
+                <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Left / Right ({backAddressOffsetX}%):
+                    <input type="range" min="-15" max="15" step="0.5" value={backAddressOffsetX} onChange={(e) => setBackAddressOffsetX(Number(e.target.value))} />
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetX((v) => +(v - 0.5).toFixed(1))}>◀</button>
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetX((v) => +(v + 0.5).toFixed(1))}>▶</button>
+                  </label>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Up / Down ({backAddressOffsetY}%):
+                    <input type="range" min="-15" max="15" step="0.5" value={backAddressOffsetY} onChange={(e) => setBackAddressOffsetY(Number(e.target.value))} />
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetY((v) => +(v - 0.5).toFixed(1))}>▲</button>
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setBackAddressOffsetY((v) => +(v + 0.5).toFixed(1))}>▼</button>
+                  </label>
+                </div>
+              </div>
+
+              {/* 3. Back QR Code Size + Left/Right + Up/Down */}
+              <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd6fe' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>
+                  🟣 3. Back QR Code (Size & Move Left/Right, Up/Down):
+                </div>
+                <div className="mnc-controls-row" style={{ justifyContent: 'flex-start', gap: '18px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Size ({qrScale}%):
+                    <input type="range" min="65" max="100" step="1" value={qrScale} onChange={(e) => setQrScale(Number(e.target.value))} />
+                  </label>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Left / Right ({qrOffsetX}%):
+                    <input type="range" min="-15" max="15" step="0.5" value={qrOffsetX} onChange={(e) => setQrOffsetX(Number(e.target.value))} />
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetX((v) => +(v - 0.5).toFixed(1))}>◀</button>
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetX((v) => +(v + 0.5).toFixed(1))}>▶</button>
+                  </label>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Up / Down ({qrOffsetY}%):
+                    <input type="range" min="-15" max="15" step="0.5" value={qrOffsetY} onChange={(e) => setQrOffsetY(Number(e.target.value))} />
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetY((v) => +(v - 0.5).toFixed(1))}>▲</button>
+                    <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => setQrOffsetY((v) => +(v + 0.5).toFixed(1))}>▼</button>
+                  </label>
+                </div>
               </div>
             </div>
 
-            {/* Optional Fine-Tuning for All 5 Boxes */}
+            {/* Optional Fine-Tuning for All 5 Selection Boxes */}
             {showBoxTuning && (
               <div style={{ paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'grid', gap: '10px' }}>
                 <div className="mnc-calib-inputs">
