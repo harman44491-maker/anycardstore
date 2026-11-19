@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v8_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v9_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -23,9 +23,9 @@ const CARD_PRESETS = {
     w: 42.0,
     photoBox: { x: 10.5, y: 22.3, w: 19.5, h: 37.5 },
     frontTextBox: { x: 32.5, y: 20.5, w: 36, h: 19.5 },
-    frontDisclaimerBox: { x: 32.5, y: 40.5, w: 65, h: 32 },
+    frontDisclaimerBox: { x: 32, y: 40.5, w: 65, h: 35.5 },
     backTextBox: { x: 4.5, y: 23, w: 55, h: 20.5 },
-    backQrBox: { x: 60, y: 19.5, w: 36, h: 55 },
+    backQrBox: { x: 60.5, y: 19.5, w: 39, h: 56 },
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
@@ -68,7 +68,6 @@ const CARD_PRESETS = {
   },
 };
 
-// 3x stronger Boldness (Levels 0 to 12) + Unclipped Font Size Scale + Position Offset (offsetX%, offsetY%)
 function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
   const { textBoldness, textScalePercent, offsetX = 0, offsetY = 0 } = options;
   const w = sourceImg.width;
@@ -136,7 +135,6 @@ function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
   ctx.restore();
 }
 
-// Shrink & Reposition (Up/Down, Left/Right) for Front Disclaimer Box and Back QR Code
 function applyBoxShrinkAndMove(ctx, sourceImg, box, options) {
   const { scalePercent = 100, offsetX = 0, offsetY = 0, align = 'top-left' } = options;
   if (!box) return;
@@ -292,21 +290,22 @@ export default function PvcIdCardMaker() {
   const [showFullPdfInspector, setShowFullPdfInspector] = useState(false);
   const [pdfInspectorZoom, setPdfInspectorZoom] = useState(1);
 
+  // Exact defaults matching Screenshot 1 (image_5.png)
   const [photoBrightness, setPhotoBrightness] = useState(133);
   const [photoContrast, setPhotoContrast] = useState(100);
-  const [textBoldness, setTextBoldness] = useState(4);
-  const [textScale, setTextScale] = useState(100);
+  const [textBoldness, setTextBoldness] = useState(5);
+  const [textScale, setTextScale] = useState(130);
 
-  const [disclaimerScale, setDisclaimerScale] = useState(100);
-  const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(0);
-  const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(0);
+  const [disclaimerScale, setDisclaimerScale] = useState(73);
+  const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(7.5);
+  const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(12);
 
   const [backAddressOffsetX, setBackAddressOffsetX] = useState(0);
   const [backAddressOffsetY, setBackAddressOffsetY] = useState(0);
 
   const [qrScale, setQrScale] = useState(65);
-  const [qrOffsetX, setQrOffsetX] = useState(0);
-  const [qrOffsetY, setQrOffsetY] = useState(0);
+  const [qrOffsetX, setQrOffsetX] = useState(9);
+  const [qrOffsetY, setQrOffsetY] = useState(3.5);
 
   const [showBoxesOnCard, setShowBoxesOnCard] = useState(false);
   const [showBoxTuning, setShowBoxTuning] = useState(false);
@@ -359,9 +358,9 @@ export default function PvcIdCardMaker() {
   const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 10.5, y: 22.3, w: 19.5, h: 37.5 };
   const activeFrontTextBox = crop.frontTextBox || CARD_PRESETS[selectedPreset]?.frontTextBox || { x: 32.5, y: 20.5, w: 36, h: 19.5 };
   const activeFrontDisclaimerBox =
-    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 32.5, y: 40.5, w: 65, h: 32 };
+    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 32, y: 40.5, w: 65, h: 35.5 };
   const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 23, w: 55, h: 20.5 };
-  const activeBackQrBox = crop.backQrBox || CARD_PRESETS[selectedPreset]?.backQrBox || { x: 60, y: 19.5, w: 36, h: 55 };
+  const activeBackQrBox = crop.backQrBox || CARD_PRESETS[selectedPreset]?.backQrBox || { x: 60.5, y: 19.5, w: 39, h: 56 };
 
   const updateSubBoxField = (boxKey, field, val) => {
     const num = parseFloat(val);
@@ -504,13 +503,29 @@ export default function PvcIdCardMaker() {
 
   return (
     <section>
-      <div className="mnc-privacy-banner">
+      <style>{`
+        .pvc-3mm-top-stage {
+          margin-top: 3mm !important;
+          padding-top: 0 !important;
+        }
+        @media print {
+          @page {
+            margin-top: 3mm !important;
+          }
+          .pvc-3mm-top-stage {
+            margin-top: 3mm !important;
+            padding-top: 0 !important;
+          }
+        }
+      `}</style>
+
+      <div className="mnc-privacy-banner no-print">
         <span>
           🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Photo retouch, 3x Text Bold, Unclipped Font Size, aur Box Position browser mein hi kaam karte hain.
         </span>
       </div>
 
-      <div className="mnc-card">
+      <div className="mnc-card no-print">
         <h3>1. Select Card Type & Upload PDF</h3>
 
         <div className="mnc-preset-row" style={{ marginTop: '10px', justifyContent: 'flex-start' }}>
@@ -680,55 +695,50 @@ export default function PvcIdCardMaker() {
 
       {cardPair && (
         <div className={`mnc-card mnc-mt-20 pvc-preview-card ${layoutMode === 'a4' ? 'pvc-a4-print-card' : ''}`}>
-          <div className="mnc-row-between">
-            <div>
-              <h3>2. Card Preview ({layoutMode === 'tray' ? 'PVC Tray Alignment' : 'A4 Print Layout'})</h3>
-              <p className="mnc-muted">Exact CR80 Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI</p>
-              <p className="mnc-muted">Preview zoom only changes the screen view. For a clean A4 print, turn off Headers and footers in the print dialog.</p>
-            </div>
-            <div className="mnc-preset-row">
-              <div className="pvc-preview-zoom-controls" aria-label="Preview zoom controls">
-                <button
-                  type="button"
-                  className="mnc-btn mnc-btn-ghost"
-                  aria-label="Zoom out"
-                  disabled={previewZoom <= 0.75}
-                  onClick={() => setPreviewZoom((zoom) => Math.max(0.75, +(zoom - 0.25).toFixed(2)))}
-                >
-                  −
-                </button>
-                <span>{Math.round(previewZoom * 100)}%</span>
-                <button
-                  type="button"
-                  className="mnc-btn mnc-btn-ghost"
-                  aria-label="Zoom in"
-                  disabled={previewZoom >= 2.5}
-                  onClick={() => setPreviewZoom((zoom) => Math.min(2.5, +(zoom + 0.25).toFixed(2)))}
-                >
-                  +
-                </button>
-              </div>
+          {/* Top action bar only (Heading & description text removed as requested) */}
+          <div className="mnc-preset-row no-print" style={{ justifyContent: 'flex-end' }}>
+            <div className="pvc-preview-zoom-controls" aria-label="Preview zoom controls">
               <button
                 type="button"
-                className={`mnc-btn ${showTextZoomModal ? 'mnc-btn-primary' : 'mnc-btn-ghost'}`}
-                onClick={() => setShowTextZoomModal((v) => !v)}
+                className="mnc-btn mnc-btn-ghost"
+                aria-label="Zoom out"
+                disabled={previewZoom <= 0.75}
+                onClick={() => setPreviewZoom((zoom) => Math.max(0.75, +(zoom - 0.25).toFixed(2)))}
               >
-                🔍 {showTextZoomModal ? 'Close Text Zoom' : 'Zoom Text (Up to 400%)'}
+                −
               </button>
-              <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadSide('front')}>
-                ⬇ Front PNG
-              </button>
-              <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadSide('back')}>
-                ⬇ Back PNG
-              </button>
-              <button type="button" className="mnc-btn mnc-btn-success" onClick={() => window.print()}>
-                🖨️ Print Card
+              <span>{Math.round(previewZoom * 100)}%</span>
+              <button
+                type="button"
+                className="mnc-btn mnc-btn-ghost"
+                aria-label="Zoom in"
+                disabled={previewZoom >= 2.5}
+                onClick={() => setPreviewZoom((zoom) => Math.min(2.5, +(zoom + 0.25).toFixed(2)))}
+              >
+                +
               </button>
             </div>
+            <button
+              type="button"
+              className={`mnc-btn ${showTextZoomModal ? 'mnc-btn-primary' : 'mnc-btn-ghost'}`}
+              onClick={() => setShowTextZoomModal((v) => !v)}
+            >
+              🔍 {showTextZoomModal ? 'Close Text Zoom' : 'Zoom Text (Up to 400%)'}
+            </button>
+            <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadSide('front')}>
+              ⬇ Front PNG
+            </button>
+            <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadSide('back')}>
+              ⬇ Back PNG
+            </button>
+            <button type="button" className="mnc-btn mnc-btn-success" onClick={() => window.print()}>
+              🖨️ Print Card
+            </button>
           </div>
 
           {showTextZoomModal && (
             <div
+              className="no-print"
               style={{
                 marginTop: '14px',
                 background: '#0f172a',
@@ -794,6 +804,7 @@ export default function PvcIdCardMaker() {
           )}
 
           <div
+            className="no-print"
             style={{
               marginTop: '14px',
               background: '#f8fafc',
@@ -863,7 +874,7 @@ export default function PvcIdCardMaker() {
               </div>
             </div>
 
-            {/* Row B: 3x Stronger Text Boldness (0-12) & Unclipped Font Size */}
+            {/* Row B: Text Boldness & Font Size */}
             <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
               <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
                 <strong style={{ fontSize: '13px', color: '#0f172a' }}>
@@ -873,8 +884,8 @@ export default function PvcIdCardMaker() {
                   type="button"
                   className="mnc-btn mnc-btn-ghost"
                   onClick={() => {
-                    setTextBoldness(4);
-                    setTextScale(100);
+                    setTextBoldness(5);
+                    setTextScale(130);
                   }}
                 >
                   Reset Text
@@ -908,7 +919,7 @@ export default function PvcIdCardMaker() {
               </div>
             </div>
 
-            {/* Row C: Shrink + Up/Down & Left/Right Move */}
+            {/* Row C: Resize & Position Controls */}
             <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gap: '12px' }}>
               <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
                 <strong style={{ fontSize: '13px', color: '#0f172a' }}>
@@ -918,14 +929,14 @@ export default function PvcIdCardMaker() {
                   type="button"
                   className="mnc-btn mnc-btn-ghost"
                   onClick={() => {
-                    setDisclaimerScale(100);
-                    setDisclaimerOffsetX(0);
-                    setDisclaimerOffsetY(0);
+                    setDisclaimerScale(73);
+                    setDisclaimerOffsetX(7.5);
+                    setDisclaimerOffsetY(12);
                     setBackAddressOffsetX(0);
                     setBackAddressOffsetY(0);
                     setQrScale(65);
-                    setQrOffsetX(0);
-                    setQrOffsetY(0);
+                    setQrOffsetX(9);
+                    setQrOffsetY(3.5);
                   }}
                 >
                   Reset Positions
@@ -1047,8 +1058,8 @@ export default function PvcIdCardMaker() {
           </div>
 
           <div
-            className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet`}
-            style={{ '--pvc-preview-zoom': previewZoom }}
+            className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet pvc-3mm-top-stage`}
+            style={{ '--pvc-preview-zoom': previewZoom, marginTop: '3mm' }}
           >
             <div style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
