@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v34_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v35_';
 
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
@@ -27,15 +27,13 @@ const COMPACT_CARD_SPEC = {
 const CARD_PRESETS = {
   eaadhaar: {
     label: 'e-Aadhaar PDF (High-DPI Clear)',
-    y: 72.85,
-    h: 19.75,
+    y: 72.95,
+    h: 19.65,
     frontX: 7.6,
     backX: 50.5,
     w: 42.0,
     photoBox: { x: 10.5, y: 21.0, w: 19.5, h: 38.5 },
-    // Front Name/DOB/Gender zone (above red box)
     frontTextZone: { x: 32.0, y: 18.5, w: 46.0, h: 24.5 },
-    // Back Address zone (left of QR, above Aadhaar number)
     backTextZone: { x: 4.0, y: 17.5, w: 56.5, h: 39.5 },
   },
   voterId: {
@@ -111,7 +109,6 @@ function enhanceSafeTextZone(ctx, img, zone, options) {
     pCtx.restore();
   }
 
-  // Clamp scale inside zone height so it never touches neighboring boxes
   const requestedScale = textScalePercent / 100;
   const safeScale = Math.max(1.0, Math.min(requestedScale, 1.14));
   const outW = Math.min(zw, Math.round(zw * safeScale));
@@ -187,7 +184,8 @@ export default function PvcIdCardMaker() {
   const [pdfPassword, setPdfPassword] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('eaadhaar');
   const [layoutMode, setLayoutMode] = useState('a4');
-  const [previewZoom, setPreviewZoom] = useState(1.25);
+  // Shows 75% label while rendering at 125% visual display scale on screen
+  const [previewZoom, setPreviewZoom] = useState(0.75);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -216,6 +214,9 @@ export default function PvcIdCardMaker() {
       ? COMPACT_CARD_SPEC
       : SHOP_CONFIG.cr80CardSpec;
   const outputDpi = isAadhaarMode ? AADHAAR_OUTPUT_DPI : isVoterMode ? COMPACT_300_DPI : 300;
+
+  // Map 75% indicator to 125% visual display (1.25 / 0.75 = 1.6667x)
+  const effectiveDisplayScale = +(previewZoom * (1.25 / 0.75)).toFixed(3);
 
   useEffect(() => {
     try {
@@ -348,6 +349,9 @@ export default function PvcIdCardMaker() {
           justify-content: center !important;
           align-items: flex-start !important;
           gap: 2mm !important;
+          transform: scale(var(--mnc-display-scale, 1.25));
+          transform-origin: top center;
+          transition: transform 0.15s ease;
         }
 
         .mnc-pvc-print-only-stage .cr80-card-img,
@@ -417,7 +421,7 @@ export default function PvcIdCardMaker() {
 
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> High-DPI Clear Print ({outputDpi} DPI) | Text Size: {textScalePercent}% | Card: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
+          🔒 <strong>100% Local Processing:</strong> High-DPI Clear Print ({outputDpi} DPI) | 75% Zoom = 125% Display | Card: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
         </span>
       </div>
 
@@ -531,8 +535,8 @@ export default function PvcIdCardMaker() {
                 <button
                   type="button"
                   className="mnc-btn mnc-btn-ghost"
-                  disabled={previewZoom <= 0.75}
-                  onClick={() => setPreviewZoom((zoom) => Math.max(0.75, +(zoom - 0.25).toFixed(2)))}
+                  disabled={previewZoom <= 0.5}
+                  onClick={() => setPreviewZoom((zoom) => Math.max(0.5, +(zoom - 0.25).toFixed(2)))}
                 >
                   −
                 </button>
@@ -540,8 +544,8 @@ export default function PvcIdCardMaker() {
                 <button
                   type="button"
                   className="mnc-btn mnc-btn-ghost"
-                  disabled={previewZoom >= 2.5}
-                  onClick={() => setPreviewZoom((zoom) => Math.min(2.5, +(zoom + 0.25).toFixed(2)))}
+                  disabled={previewZoom >= 1.5}
+                  onClick={() => setPreviewZoom((zoom) => Math.min(1.5, +(zoom + 0.25).toFixed(2)))}
                 >
                   +
                 </button>
@@ -620,7 +624,14 @@ export default function PvcIdCardMaker() {
 
           <div
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet mnc-pvc-print-only-stage`}
-            style={{ '--pvc-preview-zoom': previewZoom, marginTop: '3mm', marginLeft: '5mm', marginRight: '5mm', gap: '2mm' }}
+            style={{
+              '--pvc-preview-zoom': previewZoom,
+              '--mnc-display-scale': effectiveDisplayScale,
+              marginTop: '3mm',
+              marginLeft: '5mm',
+              marginRight: '5mm',
+              gap: '2mm',
+            }}
           >
             <div className="mnc-pvc-card-box">
               <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
