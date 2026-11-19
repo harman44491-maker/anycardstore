@@ -1,3 +1,8 @@
+@page ayushman-a4 {
+  size: A4 portrait;
+  margin: 0;
+}
+
 @media print {
   .mnc-sidebar,
   .mnc-topbar,
@@ -21,5 +26,64 @@
   .printable-sheet {
     margin: 0 auto !important;
     padding: 6mm !important;
+  }
+
+  .ayushman-print-card {
+    page: ayushman-a4;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ayushman-print-card > .mnc-row-between {
+    display: none !important;
+  }
+
+  .ayushman-print-sheet {
+    display: flex !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 4mm 0 0 !important;
+    gap: 2mm !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .ayushman-print-sheet .mnc-card-pair {
+    display: flex !important;
+    width: 182mm !important;
+    height: 57mm !important;
+    min-height: 57mm !important;
+    flex: 0 0 57mm !important;
+    flex-wrap: nowrap !important;
+    gap: 2mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ayushman-print-sheet .cr80-card-img {
+    width: 90mm !important;
+    height: 57mm !important;
+    max-width: none !important;
+    flex: 0 0 90mm !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    object-fit: fill !important;
   }
 }

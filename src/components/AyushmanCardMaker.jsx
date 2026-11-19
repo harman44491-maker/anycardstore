@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
-import { SHOP_CONFIG } from '../config/shopConfig';
+import { renderPdfPagesToCanvas, cropPercentToCardCanvas, fitCanvasToCardCanvas } from '../utils/pdfRenderer';
+
+const AYUSHMAN_CARD_SPEC = {
+  widthMm: 90,
+  heightMm: 57,
+  pxWidth: 1063,
+  pxHeight: 673,
+  renderScale: 4.17,
+};
 
 const STORAGE_KEY = 'mnc_ayushman_crop_calibration_v1';
 
@@ -70,23 +77,30 @@ export default function AyushmanCardMaker() {
 
     setLoading(true);
     try {
-      const { pxWidth, pxHeight } = SHOP_CONFIG.cr80CardSpec;
       const generated = [];
 
       for (const file of selected) {
-        const pageCanvas = await renderPdfPageToCanvas(file, 3);
-        const frontDataUrl = cropPercentToCardCanvas(
-          pageCanvas,
-          { x: crop.frontX, y: crop.y, w: crop.w, h: crop.h },
-          pxWidth,
-          pxHeight
-        );
-        const backDataUrl = cropPercentToCardCanvas(
-          pageCanvas,
-          { x: crop.backX, y: crop.y, w: crop.w, h: crop.h },
-          pxWidth,
-          pxHeight
-        );
+        const { pages, pageCount } = await renderPdfPagesToCanvas(file, AYUSHMAN_CARD_SPEC.renderScale);
+        let frontDataUrl;
+        let backDataUrl;
+
+        if (pageCount >= 2 && pages[1]) {
+          frontDataUrl = fitCanvasToCardCanvas(pages[0], AYUSHMAN_CARD_SPEC.pxWidth, AYUSHMAN_CARD_SPEC.pxHeight);
+          backDataUrl = fitCanvasToCardCanvas(pages[1], AYUSHMAN_CARD_SPEC.pxWidth, AYUSHMAN_CARD_SPEC.pxHeight);
+        } else {
+          frontDataUrl = cropPercentToCardCanvas(
+            pages[0],
+            { x: crop.frontX, y: crop.y, w: crop.w, h: crop.h },
+            AYUSHMAN_CARD_SPEC.pxWidth,
+            AYUSHMAN_CARD_SPEC.pxHeight
+          );
+          backDataUrl = cropPercentToCardCanvas(
+            pages[0],
+            { x: crop.backX, y: crop.y, w: crop.w, h: crop.h },
+            AYUSHMAN_CARD_SPEC.pxWidth,
+            AYUSHMAN_CARD_SPEC.pxHeight
+          );
+        }
 
         generated.push({
           id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -148,7 +162,7 @@ export default function AyushmanCardMaker() {
         <div className="mnc-row-between">
           <div>
             <h3>1. Upload Ayushman / Mukhya Mantri Sehat Card PDF(s)</h3>
-            <p className="mnc-muted">Ek baar mein 5 PDFs tak select karein. Har card exact CR80 PVC size (85.6mm × 54mm) mein niklega.</p>
+            <p className="mnc-muted">Ek baar mein 5 PDFs tak select karein. Har set ke Front aur Back card 90mm × 57mm size mein niklenge aur ek A4 sheet par 5 sets fit honge.</p>
           </div>
           <div className="mnc-preset-row">
             {Object.entries(PRESETS).map(([key, preset]) => (
@@ -168,7 +182,7 @@ export default function AyushmanCardMaker() {
           <div className="mnc-calib-header">
             <strong>🎯 Crop Calibration Bar (% of PDF Page) — Auto-Saved:</strong>
             <span className="mnc-calib-hint">
-              Kyunki Ayushman Bharat aur Mukhya Mantri Sehat Yojana ke PDF mein card ki position thodi upar-neeche ho sakti hai, ek baar set kar lein; har card exact 85.6mm × 54mm niklega.
+              2-page PDF mein Page 1 Front aur Page 2 Back use hoga. Single-page PDF ke liye crop position yahan adjust karein.
             </span>
           </div>
           <div className="mnc-calib-inputs">
@@ -216,7 +230,7 @@ export default function AyushmanCardMaker() {
         <div className="mnc-card mnc-mt-20">
           <div className="mnc-row-between">
             <div>
-              <h3>2. Front & Back Preview (CR80 PVC Size: 85.6mm × 54mm)</h3>
+              <h3>2. Front & Back Preview (90mm × 57mm)</h3>
               <p className="mnc-muted">
                 Card {activeIndex + 1} of {cards.length} — <strong>{activeCard.name}</strong>
               </p>
@@ -244,11 +258,11 @@ export default function AyushmanCardMaker() {
           <div className="mnc-slider-stage">
             <div className="mnc-side-box">
               <span>FRONT SIDE (300 DPI)</span>
-              <canvas ref={frontCanvasRef} width={1011} height={638} className="mnc-preview-canvas" />
+              <canvas ref={frontCanvasRef} width={AYUSHMAN_CARD_SPEC.pxWidth} height={AYUSHMAN_CARD_SPEC.pxHeight} className="mnc-preview-canvas ayushman-preview-canvas" />
             </div>
             <div className="mnc-side-box">
               <span>BACK SIDE (300 DPI)</span>
-              <canvas ref={backCanvasRef} width={1011} height={638} className="mnc-preview-canvas" />
+              <canvas ref={backCanvasRef} width={AYUSHMAN_CARD_SPEC.pxWidth} height={AYUSHMAN_CARD_SPEC.pxHeight} className="mnc-preview-canvas ayushman-preview-canvas" />
             </div>
           </div>
 
@@ -264,18 +278,18 @@ export default function AyushmanCardMaker() {
       )}
 
       {cards.length > 0 && (
-        <div className="mnc-card mnc-mt-20">
+        <div className="mnc-card mnc-mt-20 ayushman-print-card">
           <div className="mnc-row-between">
             <div>
               <h3>3. A4 Size Print Sheet ({cards.length} Card{cards.length > 1 ? 's' : ''})</h3>
-              <p className="mnc-muted">Exact 85.6mm × 54mm dimensions for A4 printing & lamination.</p>
+              <p className="mnc-muted">90mm × 57mm cards · 2mm gap between Front and Back · 5 sets on A4 with 4mm top margin. Print at 100%, with margins and headers/footers turned off.</p>
             </div>
             <button type="button" className="mnc-btn mnc-btn-success" onClick={() => window.print()}>
               🖨️ Print / Save as A4 PDF
             </button>
           </div>
 
-          <div className="mnc-a4-preview printable-sheet">
+          <div className="mnc-a4-preview printable-sheet ayushman-print-sheet">
             {cards.map((card) => (
               <div className="mnc-card-pair" key={card.id}>
                 <img src={card.frontDataUrl} alt={`${card.name} Front`} className="cr80-card-img" />

@@ -6,7 +6,7 @@ const TOOLS = [
     id: 'ayushman',
     title: 'Ayushman & Sehat Card Maker',
     desc: 'Split up to 5 health card PDFs into Front & Back at 300 DPI and print on A4.',
-    badge: 'A4 + CR80',
+    badge: 'A4 · 90×57 mm',
   },
   {
     id: 'pvc',
