@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v27_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v28_';
 
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
@@ -34,7 +34,7 @@ const CARD_PRESETS = {
     w: 42.0,
     photoBox: { x: 10.5, y: 22.3, w: 19.5, h: 37.5 },
     frontTextBox: { x: 32.5, y: 20.0, w: 43.0, h: 27.5 },
-    frontDisclaimerBox: { x: 33.5, y: 58.5, w: 64.0, h: 24.0 },
+    frontDisclaimerBox: { x: 33.5, y: 58.5, w: 56.0, h: 23.0 },
     backTextBox: { x: 4.5, y: 18.0, w: 56.0, h: 39.0 },
     backQrBox: { x: 60.5, y: 18.5, w: 39.0, h: 58.0 },
   },
@@ -446,7 +446,7 @@ export default function PvcIdCardMaker() {
   const [textScale, setTextScale] = useState(124);
 
   const [disclaimerScale, setDisclaimerScale] = useState(66);
-  const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(3.5);
+  const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(2.0);
   const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(2.0);
 
   const [backAddressOffsetX, setBackAddressOffsetX] = useState(0);
@@ -514,7 +514,7 @@ export default function PvcIdCardMaker() {
   const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 10.5, y: 22.3, w: 19.5, h: 37.5 };
   const activeFrontTextBox = crop.frontTextBox || CARD_PRESETS[selectedPreset]?.frontTextBox || { x: 32.5, y: 20.0, w: 43.0, h: 27.5 };
   const activeFrontDisclaimerBox =
-    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 33.5, y: 58.5, w: 64.0, h: 24.0 };
+    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 33.5, y: 58.5, w: 56.0, h: 23.0 };
   const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 18.0, w: 56.0, h: 39.0 };
   const activeBackQrBox = crop.backQrBox || CARD_PRESETS[selectedPreset]?.backQrBox || { x: 60.5, y: 18.5, w: 39.0, h: 58.0 };
 
@@ -1213,7 +1213,7 @@ export default function PvcIdCardMaker() {
                     className="mnc-btn mnc-btn-ghost"
                     onClick={() => {
                       setDisclaimerScale(66);
-                      setDisclaimerOffsetX(3.5);
+                      setDisclaimerOffsetX(2.0);
                       setDisclaimerOffsetY(2.0);
                       setBackAddressOffsetX(0);
                       setBackAddressOffsetY(0);
