@@ -48,7 +48,7 @@
     display: grid !important;
     grid-template-columns: 1fr !important;
     grid-auto-rows: 57mm !important;
-    row-gap: 2mm !important;
+    row-gap: 1mm !important;
     column-gap: 0 !important;
     align-content: start !important;
     justify-items: center !important;
