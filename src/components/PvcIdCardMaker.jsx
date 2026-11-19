@@ -49,7 +49,7 @@ const CARD_PRESETS = {
 };
 
 export default function PvcIdCardMaker() {
-  const [, set] = useState(null);
+  const [pdfFile, setPdfFile] = useState(null);
   const [pdfPassword, setPdfPassword] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('eaadhaar');
   const [layoutMode, setLayoutMode] = useState('a4');
@@ -97,7 +97,7 @@ export default function PvcIdCardMaker() {
   };
 
   const handleExtract = async () => {
-    if (!) {
+    if (!pdfFile) {
       setErrorMsg('Kripya pehle Aadhaar, Voter, ya PAN PDF file select karein.');
       return;
     }
@@ -107,7 +107,7 @@ export default function PvcIdCardMaker() {
 
     try {
       const { pxWidth, pxHeight } = outputSpec;
-      const sourceRenderScale = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC.renderScale : 4.16;
+      const sourceRenderScale = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC.renderScale : 3;
       const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
 
       const frontUrl = cropPercentToCardCanvas(
@@ -177,7 +177,7 @@ export default function PvcIdCardMaker() {
         <div className="mnc-controls-row" style={{ marginTop: '16px', justifyContent: 'flex-start' }}>
           <div className="mnc-upload-box">
             <label>Upload ID Card PDF *</label>
-            <input type="file" accept="application/pdf" onChange={(e) => set(e.target.files?.[0] || null)} />
+            <input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
           </div>
 
           <div className="mnc-upload-box">
@@ -252,12 +252,12 @@ export default function PvcIdCardMaker() {
       </div>
 
       {cardPair && (
-        <div className="mnc-card mnc-mt-20">
+        <div className={`mnc-card mnc-mt-20 pvc-preview-card ${layoutMode === 'a4' ? 'pvc-a4-print-card' : ''}`}>
           <div className="mnc-row-between">
             <div>
               <h3>2. Card Preview ({layoutMode === 'tray' ? 'PVC Tray Alignment' : 'A4 Print Layout'})</h3>
               <p className="mnc-muted">Exact CR80 Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI</p>
-              <p className="mnc-muted">Preview zoom affects the screen view only; the cropped file and print size stay unchanged.</p>
+              <p className="mnc-muted">Preview zoom only changes the screen view. For a clean A4 print, turn off Headers and footers in the print dialog.</p>
             </div>
             <div className="mnc-preset-row">
               <div className="pvc-preview-zoom-controls" aria-label="Preview zoom controls">
