@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v13_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v14_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -414,8 +414,8 @@ export default function PvcIdCardMaker() {
         frontUrl,
         backUrl,
         dpi: outputDpi,
-        widthMm: (outputSpec.widthMm || 85.6) + 4,
-        heightMm: (outputSpec.heightMm || 54) + 4,
+        widthMm: 90,
+        heightMm: 60,
       });
     } catch (err) {
       if (err?.name === 'PasswordException') {
@@ -503,9 +503,10 @@ export default function PvcIdCardMaker() {
   return (
     <section className="mnc-pvc-root">
       <style>{`
+        /* Card size: 90mm x 60mm, gap: 2mm, top margin: 3mm, left/right margin: 5mm */
         .mnc-pvc-print-only-stage {
-          margin-top: 3mm !important;
-          padding-top: 0 !important;
+          margin: 3mm 5mm 0 5mm !important;
+          padding: 0 !important;
           display: flex !important;
           flex-direction: row !important;
           justify-content: center !important;
@@ -513,18 +514,23 @@ export default function PvcIdCardMaker() {
           gap: 2mm !important;
         }
 
-        .mnc-pvc-print-only-stage .cr80-card-img {
-          width: 89.6mm !important;
-          height: 58mm !important;
-          max-width: none !important;
-          max-height: none !important;
+        .mnc-pvc-print-only-stage .cr80-card-img,
+        .mnc-pvc-print-only-stage img.cr80-card-img,
+        .mnc-pvc-print-only-stage .mnc-pvc-card-box {
+          width: 90mm !important;
+          height: 60mm !important;
+          min-width: 90mm !important;
+          min-height: 60mm !important;
+          max-width: 90mm !important;
+          max-height: 60mm !important;
           display: block !important;
+          object-fit: fill !important;
         }
 
         @media print {
           @page {
             size: A4 portrait;
-            margin: 3mm 6mm 6mm 6mm;
+            margin: 3mm 5mm 6mm 5mm;
           }
 
           html, body {
@@ -548,9 +554,9 @@ export default function PvcIdCardMaker() {
           .mnc-pvc-print-only-stage {
             position: fixed !important;
             top: 3mm !important;
-            left: 0 !important;
-            right: 0 !important;
-            margin: 0 auto !important;
+            left: 5mm !important;
+            right: 5mm !important;
+            margin: 0 !important;
             padding: 0 !important;
             transform: none !important;
             zoom: 1 !important;
@@ -559,8 +565,9 @@ export default function PvcIdCardMaker() {
             justify-content: center !important;
             align-items: flex-start !important;
             gap: 2mm !important;
-            max-width: 198mm !important;
-            max-height: 280mm !important;
+            width: calc(210mm - 10mm) !important;
+            max-width: 200mm !important;
+            max-height: 285mm !important;
             page-break-before: avoid !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
@@ -568,12 +575,17 @@ export default function PvcIdCardMaker() {
             break-after: avoid !important;
           }
 
-          .mnc-pvc-print-only-stage .cr80-card-img {
-            width: 89.6mm !important;
-            height: 58mm !important;
-            max-width: 89.6mm !important;
-            max-height: 58mm !important;
+          .mnc-pvc-print-only-stage .cr80-card-img,
+          .mnc-pvc-print-only-stage img.cr80-card-img,
+          .mnc-pvc-print-only-stage .mnc-pvc-card-box {
+            width: 90mm !important;
+            height: 60mm !important;
+            min-width: 90mm !important;
+            min-height: 60mm !important;
+            max-width: 90mm !important;
+            max-height: 60mm !important;
             display: block !important;
+            object-fit: fill !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
@@ -582,7 +594,7 @@ export default function PvcIdCardMaker() {
 
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Card size: 89.6 × 58 mm (+4mm W/H), Gap: 2mm, Top Margin: 3mm.
+          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Card size: 90 × 60 mm, Gap: 2mm, Top Margin: 3mm, Left/Right Margin: 5mm.
         </span>
       </div>
 
@@ -633,7 +645,7 @@ export default function PvcIdCardMaker() {
               onChange={(e) => setLayoutMode(e.target.value)}
               style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
             >
-              <option value="a4">A4 Sheet (89.6 × 58 mm)</option>
+              <option value="a4">A4 Sheet (90 × 60 mm)</option>
               <option value="tray">PVC Card Tray (Epson L805/L8050)</option>
             </select>
           </div>
@@ -643,7 +655,7 @@ export default function PvcIdCardMaker() {
           <div className="mnc-calib-header">
             <strong>🎯 Crop Calibration Bar (% of PDF Page) — Auto-Saved:</strong>
             <span className="mnc-calib-hint">
-              Aadhaar ya Voter PDF mein card position thodi alag ho to yahan se adjust karein (Card: 89.6mm × 58mm, Gap: 2mm).
+              Aadhaar ya Voter PDF mein card position thodi alag ho to yahan se adjust karein (Card: 90mm × 60mm, Gap: 2mm).
             </span>
           </div>
           <div className="mnc-calib-inputs">
@@ -759,7 +771,7 @@ export default function PvcIdCardMaker() {
           <div className="mnc-row-between">
             <div>
               <h3>2. Card Preview ({layoutMode === 'tray' ? 'PVC Tray Alignment' : 'A4 Print Layout'})</h3>
-              <p className="mnc-muted">Card Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI | Gap: 2mm | Top Margin: 3mm</p>
+              <p className="mnc-muted">Card Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI | Gap: 2mm | Top: 3mm | L/R: 5mm</p>
               <p className="mnc-muted">Preview zoom only changes the screen view. For a clean A4 print, turn off Headers and footers in the print dialog.</p>
             </div>
             <div className="mnc-preset-row">
@@ -1121,9 +1133,9 @@ export default function PvcIdCardMaker() {
 
           <div
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet mnc-pvc-print-only-stage`}
-            style={{ '--pvc-preview-zoom': previewZoom, marginTop: '3mm', gap: '2mm' }}
+            style={{ '--pvc-preview-zoom': previewZoom, marginTop: '3mm', marginLeft: '5mm', marginRight: '5mm', gap: '2mm' }}
           >
-            <div style={{ position: 'relative', display: 'inline-block' }}>
+            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
               {showBoxesOnCard && (
                 <>
@@ -1170,7 +1182,7 @@ export default function PvcIdCardMaker() {
               )}
             </div>
 
-            <div style={{ position: 'relative', display: 'inline-block' }}>
+            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
               {showBoxesOnCard && (
                 <>
