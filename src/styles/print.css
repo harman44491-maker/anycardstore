@@ -1,0 +1,25 @@
+@media print {
+  .mnc-sidebar,
+  .mnc-topbar,
+  .mnc-privacy-banner,
+  .mnc-btn,
+  .mnc-card:not(:has(.printable-sheet)) {
+    display: none !important;
+  }
+
+  body,
+  .mnc-app,
+  .mnc-main-shell,
+  .mnc-content,
+  .mnc-card {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .printable-sheet {
+    margin: 0 auto !important;
+    padding: 6mm !important;
+  }
+}
