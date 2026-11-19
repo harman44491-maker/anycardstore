@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v16_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v17_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -273,6 +273,7 @@ function enhanceCardCanvas(baseDataUrl, options) {
 
       resolve(canvas.toDataURL('image/png'));
     };
+    img.onerror = () => resolve(baseDataUrl);
     img.src = baseDataUrl;
   });
 }
@@ -411,6 +412,11 @@ export default function PvcIdCardMaker() {
         pxHeight
       );
 
+      if (!frontUrl || !backUrl) {
+        setErrorMsg('Front ya Back card crop nahi ho paya. Crop values check karein.');
+        return;
+      }
+
       setRawPair({
         name: pdfFile.name.replace(/\.pdf$/i, ''),
         frontUrl,
@@ -423,7 +429,7 @@ export default function PvcIdCardMaker() {
       if (err?.name === 'PasswordException') {
         setErrorMsg('Yeh PDF password-protected hai (jaise e-Aadhaar). Kripya sahi PDF password dalein.');
       } else {
-        setErrorMsg('PDF process nahi ho paayi. File check karke dobara try karein.');
+        setErrorMsg(`PDF process nahi ho paayi: ${err?.message || 'File check karke dobara try karein.'}`);
       }
     } finally {
       setLoading(false);
@@ -511,7 +517,6 @@ export default function PvcIdCardMaker() {
   return (
     <section className="mnc-pvc-root">
       <style>{`
-        /* Card size: 90mm x 60mm, gap: 2mm, top margin: 3mm, left/right margin: 5mm */
         .mnc-pvc-print-only-stage {
           margin: 3mm 5mm 0 5mm !important;
           padding: 0 !important;
@@ -532,6 +537,8 @@ export default function PvcIdCardMaker() {
           max-width: 90mm !important;
           max-height: 60mm !important;
           display: block !important;
+          opacity: 1 !important;
+          visibility: visible !important;
           object-fit: fill !important;
         }
 
@@ -543,10 +550,9 @@ export default function PvcIdCardMaker() {
 
           html, body {
             width: 210mm !important;
-            height: 297mm !important;
+            height: auto !important;
             margin: 0 !important;
             padding: 0 !important;
-            overflow: hidden !important;
             background: #ffffff !important;
           }
 
@@ -557,14 +563,15 @@ export default function PvcIdCardMaker() {
           .mnc-pvc-print-only-stage,
           .mnc-pvc-print-only-stage * {
             visibility: visible !important;
+            opacity: 1 !important;
           }
 
           .mnc-pvc-print-only-stage {
-            position: fixed !important;
-            top: 3mm !important;
-            left: 5mm !important;
-            right: 5mm !important;
-            margin: 0 !important;
+            position: relative !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            margin: 3mm 5mm 0 5mm !important;
             padding: 0 !important;
             transform: none !important;
             zoom: 1 !important;
@@ -573,14 +580,8 @@ export default function PvcIdCardMaker() {
             justify-content: center !important;
             align-items: flex-start !important;
             gap: 2mm !important;
-            width: calc(210mm - 10mm) !important;
-            max-width: 200mm !important;
-            max-height: 285mm !important;
-            page-break-before: avoid !important;
-            page-break-after: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            break-after: avoid !important;
           }
 
           .mnc-pvc-print-only-stage .cr80-card-img,
@@ -1149,7 +1150,7 @@ export default function PvcIdCardMaker() {
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet mnc-pvc-print-only-stage`}
             style={{ '--pvc-preview-zoom': previewZoom, marginTop: '3mm', marginLeft: '5mm', marginRight: '5mm', gap: '2mm' }}
           >
-            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
+            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block', background: '#fff' }}>
               <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
               {!isVoterMode && showBoxesOnCard && (
                 <>
@@ -1196,7 +1197,7 @@ export default function PvcIdCardMaker() {
               )}
             </div>
 
-            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
+            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block', background: '#fff' }}>
               <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
               {!isVoterMode && showBoxesOnCard && (
                 <>
