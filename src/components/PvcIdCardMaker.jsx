@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
-import React, { useState, useEffect } from 'react';
-import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
-import { SHOP_CONFIG } from '../config/shopConfig';
 
 const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v5_';
 const AADHAAR_OUTPUT_DPI = 600;
@@ -802,210 +799,75 @@ export default function PvcIdCardMaker() {
                 </div>
 
                 <div className="mnc-calib-inputs">
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb', min
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v5_';
-const AADHAAR_OUTPUT_DPI = 600;
-const AADHAAR_CARD_SPEC = {
-  widthMm: 85.6,
-  heightMm: 54,
-  dpi: AADHAAR_OUTPUT_DPI,
-  pxWidth: Math.round((85.6 * AADHAAR_OUTPUT_DPI) / 25.4),
-  pxHeight: Math.round((54 * AADHAAR_OUTPUT_DPI) / 25.4),
-  renderScale: AADHAAR_OUTPUT_DPI / 72,
-};
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb', minWidth: '155px' }}>🔵 Back Address (%):</span>
+                  <label>X <input type="number" step="0.5" value={activeBackTextBox.x} onChange={(e) => updateSubBoxField('backTextBox', 'x', e.target.value)} /></label>
+                  <label>Y <input type="number" step="0.5" value={activeBackTextBox.y} onChange={(e) => updateSubBoxField('backTextBox', 'y', e.target.value)} /></label>
+                  <label>W <input type="number" step="0.5" value={activeBackTextBox.w} onChange={(e) => updateSubBoxField('backTextBox', 'w', e.target.value)} /></label>
+                  <label>H <input type="number" step="0.5" value={activeBackTextBox.h} onChange={(e) => updateSubBoxField('backTextBox', 'h', e.target.value)} /></label>
+                </div>
+              </div>
+            )}
+          </div>
 
-const CARD_PRESETS = {
-  eaadhaar: {
-    label: 'e-Aadhaar PDF (Bottom Cut)',
-    y: 72.2,
-    h: 20.6,
-    frontX: 7.6,
-    backX: 50.5,
-    w: 42.0,
-    photoBox: { x: 11, y: 22.8, w: 19.5, h: 37.5 },
-    frontTextBox: { x: 32.5, y: 19.5, w: 45.5, h: 21 },
-    backTextBox: { x: 4.5, y: 21.5, w: 54.5, h: 27.5 },
-  },
-  voterId: {
-    label: 'e-EPIC Voter ID PDF',
-    y: 12.0,
-    h: 27.5,
-    frontX: 6.0,
-    backX: 51.0,
-    w: 43.0,
-    photoBox: { x: 3.5, y: 21.0, w: 27.5, h: 55.0 },
-    frontTextBox: { x: 31.0, y: 23.0, w: 63.0, h: 50.0 },
-    backTextBox: { x: 5.0, y: 20.0, w: 56.0, h: 56.0 },
-  },
-  panCard: {
-    label: 'e-PAN Card PDF',
-    y: 66.0,
-    h: 25.0,
-    frontX: 6.0,
-    backX: 51.0,
-    w: 43.0,
-    photoBox: { x: 3.5, y: 24.0, w: 26.0, h: 52.0 },
-    frontTextBox: { x: 30.0, y: 24.0, w: 64.0, h: 52.0 },
-    backTextBox: { x: 5.0, y: 20.0, w: 88.0, h: 55.0 },
-  },
-  eshram: {
-    label: 'e-Shram Card PDF',
-    y: 14.0,
-    h: 27.0,
-    frontX: 6.0,
-    backX: 51.0,
-    w: 43.0,
-    photoBox: { x: 3.5, y: 21.0, w: 27.0, h: 55.0 },
-    frontTextBox: { x: 31.0, y: 23.0, w: 62.0, h: 48.0 },
-    backTextBox: { x: 5.0, y: 20.0, w: 56.0, h: 56.0 },
-  },
-};
+          <div
+            className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet`}
+            style={{ '--pvc-preview-zoom': previewZoom }}
+          >
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
+              {showBoxesOnCard && (
+                <>
+                  <div
+                    className="no-print"
+                    style={{
+                      position: 'absolute',
+                      left: `${activePhotoBox.x}%`,
+                      top: `${activePhotoBox.y}%`,
+                      width: `${activePhotoBox.w}%`,
+                      height: `${activePhotoBox.h}%`,
+                      border: '2px dashed #ef4444',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <div
+                    className="no-print"
+                    style={{
+                      position: 'absolute',
+                      left: `${activeFrontTextBox.x}%`,
+                      top: `${activeFrontTextBox.y}%`,
+                      width: `${activeFrontTextBox.w}%`,
+                      height: `${activeFrontTextBox.h}%`,
+                      border: '2px dashed #16a34a',
+                      background: 'rgba(22, 163, 74, 0.12)',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                </>
+              )}
+            </div>
 
-function applySelectiveTextBoldAndScale(ctx, sourceImg, box, textBoldness, textScalePercent) {
-  const w = sourceImg.width;
-  const h = sourceImg.height;
-  const tx = Math.round((box.x / 100) * w);
-  const ty = Math.round((box.y / 100) * h);
-  const tw = Math.round((box.w / 100) * w);
-  const th = Math.round((box.h / 100) * h);
-
-  if (tw <= 0 || th <= 0) return;
-
-  const regionCanvas = document.createElement('canvas');
-  regionCanvas.width = tw;
-  regionCanvas.height = th;
-  const rCtx = regionCanvas.getContext('2d');
-  rCtx.imageSmoothingEnabled = true;
-  rCtx.imageSmoothingQuality = 'high';
-
-  rCtx.drawImage(sourceImg, tx, ty, tw, th, 0, 0, tw, th);
-
-  if (textBoldness > 0) {
-    const baseRegion = document.createElement('canvas');
-    baseRegion.width = tw;
-    baseRegion.height = th;
-    baseRegion.getContext('2d').drawImage(regionCanvas, 0, 0);
-
-    const offsets = [
-      [0.65, 0],
-      [-0.65, 0],
-      [0, 0.65],
-      [0, -0.65],
-    ];
-    const passes = Math.min(4, Math.max(1, Math.round(textBoldness)));
-    rCtx.save();
-    rCtx.globalCompositeOperation = 'darken';
-    rCtx.globalAlpha = 0.52;
-    for (let i = 0; i < passes; i++) {
-      const [dx, dy] = offsets[i % offsets.length];
-      const mult = i >= 2 ? 1.2 : 0.7;
-      rCtx.drawImage(baseRegion, dx * mult, dy * mult);
-    }
-    rCtx.restore();
-  }
-
-  const scale = textScalePercent / 100;
-  ctx.save();
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(tx, ty, tw, th);
-
-  ctx.beginPath();
-  ctx.rect(tx, ty, tw, th);
-  ctx.clip();
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(regionCanvas, 0, 0, tw, th, tx, ty, Math.round(tw * scale), Math.round(th * scale));
-  ctx.restore();
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
+              {showBoxesOnCard && (
+                <div
+                  className="no-print"
+                  style={{
+                    position: 'absolute',
+                    left: `${activeBackTextBox.x}%`,
+                    top: `${activeBackTextBox.y}%`,
+                    width: `${activeBackTextBox.w}%`,
+                    height: `${activeBackTextBox.h}%`,
+                    border: '2px dashed #2563eb',
+                    background: 'rgba(37, 99, 235, 0.12)',
+                    pointerEvents: 'none',
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }
-
-function enhanceCardCanvas(baseDataUrl, options) {
-  const {
-    side,
-    photoBox,
-    frontTextBox,
-    backTextBox,
-    photoBrightness,
-    photoContrast,
-    textBoldness,
-    textScale,
-  } = options;
-
-  return new Promise((resolve) => {
-    const needsPhotoEdit = side === 'front' && (photoBrightness !== 100 || photoContrast !== 100);
-    const needsTextEdit = textBoldness > 0 || textScale !== 100;
-
-    if (!needsPhotoEdit && !needsTextEdit) {
-      resolve(baseDataUrl);
-      return;
-    }
-
-    const img = new Image();
-    img.onload = () => {
-      const w = img.width;
-      const h = img.height;
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-
-      ctx.drawImage(img, 0, 0);
-
-      if (side === 'front') {
-        if (needsPhotoEdit && photoBox) {
-          const px = Math.round((photoBox.x / 100) * w);
-          const py = Math.round((photoBox.y / 100) * h);
-          const pw = Math.round((photoBox.w / 100) * w);
-          const ph = Math.round((photoBox.h / 100) * h);
-
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(px, py, pw, ph);
-          ctx.clip();
-          ctx.filter = `brightness(${photoBrightness}\%) contrast(${photoContrast}%)`;
-          ctx.drawImage(img, 0, 0);
-          ctx.restore();
-        }
-
-        if (needsTextEdit && frontTextBox) {
-          applySelectiveTextBoldAndScale(ctx, img, frontTextBox, textBoldness, textScale);
-        }
-      }
-
-      if (side === 'back' && needsTextEdit && backTextBox) {
-        applySelectiveTextBoldAndScale(ctx, img, backTextBox, textBoldness, textScale);
-      }
-
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.src = baseDataUrl;
-  });
-}
-
-export default function PvcIdCardMaker() {
-  const [pdfFile, setPdfFile] = useState(null);
-  const [pdfPassword, setPdfPassword] = useState('');
-  const [selectedPreset, setSelectedPreset] = useState('eaadhaar');
-  const [layoutMode, setLayoutMode] = useState('a4');
-  const [previewZoom, setPreviewZoom] = useState(1.25);
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const [fullPdfPreviewUrl, setFullPdfPreviewUrl] = useState(null);
-  const [showFullPdfInspector, setShowFullPdfInspector] = useState(false);
-  const [pdfInspectorZoom, setPdfInspectorZoom] = useState(1);
-
-  const [photoBrightness, setPhotoBrightness] = useState(133);
-  const [photoContrast, setPhotoContrast] = useState(100);
-  const [textBoldness, setTextBoldness] = useState(4);
-  const [textScale, setTextScale] = useState(100);
-
-  const [showBoxesOnCard, setShowBoxesOnCard] = useState(false);
-  const [showBoxTuning, setShowBoxTuning] = useState(false);
-
-  const [showTextZoomModal, setShowTextZoomModal] = useState(false);
-  const [textZoomSide, setTextZoomSide] = useState('front');
-  const [textZoomLevel, setTextZoomLevel] = useState(2.25);
-
-  const [crop, setCrop] = useState(() => {
-    try {
-      const saved = localStorage.getItem(`${PVC_STORAGE_PREFIX}eaadhaar`); return saved ? JSON.parse(saved) : CARD_PRESETS.eaadhaar; } catch { return CARD_PRESETS.eaadhaar; } });  const [rawPair, setRawPair] = useState(null); const [cardPair, setCardPair] = useState(null);  const outputSpec = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC : SHOP_CONFIG.cr80CardSpec; const outputDpi = selectedPreset === 'eaadhaar' ? AADHAAR_OUTPUT_DPI : 300;  useEffect(() => { try { localStorage.setItem(`${PVC_
