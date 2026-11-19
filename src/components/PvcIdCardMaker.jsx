@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v18_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v19_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -29,11 +29,11 @@ const CARD_PRESETS = {
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
-    y: 12.2,
-    h: 27.6,
-    frontX: 5.5,
-    backX: 50.8,
-    w: 43.2,
+    y: 13.5,
+    h: 25.5,
+    frontX: 5.2,
+    backX: 50.6,
+    w: 44.0,
     photoBox: { x: 3.5, y: 21.0, w: 27.5, h: 55.0 },
     frontTextBox: { x: 31.0, y: 23.0, w: 63.0, h: 50.0 },
     frontDisclaimerBox: { x: 31.0, y: 73.0, w: 60.0, h: 15.0 },
@@ -67,10 +67,6 @@ const CARD_PRESETS = {
     backQrBox: { x: 62.0, y: 20.0, w: 31.0, h: 52.0 },
   },
 };
-
-function isValidImageUrl(url) {
-  return typeof url === 'string' && url.length > 50 && (url.startsWith('data:image/') || url.startsWith('blob:'));
-}
 
 function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
   const { textBoldness, textScalePercent, offsetX = 0, offsetY = 0 } = options;
@@ -400,22 +396,13 @@ export default function PvcIdCardMaker() {
 
     setLoading(true);
     setErrorMsg('');
-    setFullPdfPreviewUrl(null);
 
     try {
       const { pxWidth, pxHeight } = outputSpec;
       const sourceRenderScale = useAadhaarSpec ? AADHAAR_CARD_SPEC.renderScale : 3;
       const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
 
-      if (!pageCanvas || !pageCanvas.width || !pageCanvas.height) {
-        setErrorMsg('PDF page canvas khali render hua. Kripya pdfRenderer.js mein renderPdfPageToCanvas check karein.');
-        return;
-      }
-
-      const fullUrl = pageCanvas.toDataURL('image/jpeg', 0.85);
-      if (isValidImageUrl(fullUrl)) {
-        setFullPdfPreviewUrl(fullUrl);
-      }
+      setFullPdfPreviewUrl(pageCanvas.toDataURL('image/jpeg', 0.85));
 
       const frontUrl = cropPercentToCardCanvas(
         pageCanvas,
@@ -429,11 +416,6 @@ export default function PvcIdCardMaker() {
         pxWidth,
         pxHeight
       );
-
-      if (!isValidImageUrl(frontUrl) || !isValidImageUrl(backUrl)) {
-        setErrorMsg('Front ya Back card crop image blank aa rahi hai. Crop values ya cropPercentToCardCanvas check karein.');
-        return;
-      }
 
       setRawPair({
         name: pdfFile.name.replace(/\.pdf$/i, ''),
@@ -555,8 +537,6 @@ export default function PvcIdCardMaker() {
           max-width: 90mm !important;
           max-height: 60mm !important;
           display: block !important;
-          opacity: 1 !important;
-          visibility: visible !important;
           object-fit: fill !important;
         }
 
@@ -568,9 +548,10 @@ export default function PvcIdCardMaker() {
 
           html, body {
             width: 210mm !important;
-            height: auto !important;
+            height: 297mm !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: hidden !important;
             background: #ffffff !important;
           }
 
@@ -581,15 +562,14 @@ export default function PvcIdCardMaker() {
           .mnc-pvc-print-only-stage,
           .mnc-pvc-print-only-stage * {
             visibility: visible !important;
-            opacity: 1 !important;
           }
 
           .mnc-pvc-print-only-stage {
-            position: relative !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            margin: 3mm 5mm 0 5mm !important;
+            position: fixed !important;
+            top: 3mm !important;
+            left: 5mm !important;
+            right: 5mm !important;
+            margin: 0 !important;
             padding: 0 !important;
             transform: none !important;
             zoom: 1 !important;
@@ -598,8 +578,14 @@ export default function PvcIdCardMaker() {
             justify-content: center !important;
             align-items: flex-start !important;
             gap: 2mm !important;
+            width: calc(210mm - 10mm) !important;
+            max-width: 200mm !important;
+            max-height: 285mm !important;
+            page-break-before: avoid !important;
+            page-break-after: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            break-after: avoid !important;
           }
 
           .mnc-pvc-print-only-stage .cr80-card-img,
@@ -1168,7 +1154,7 @@ export default function PvcIdCardMaker() {
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet mnc-pvc-print-only-stage`}
             style={{ '--pvc-preview-zoom': previewZoom, marginTop: '3mm', marginLeft: '5mm', marginRight: '5mm', gap: '2mm' }}
           >
-            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block', background: '#fff' }}>
+            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
               {!isVoterMode && showBoxesOnCard && (
                 <>
@@ -1215,7 +1201,7 @@ export default function PvcIdCardMaker() {
               )}
             </div>
 
-            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block', background: '#fff' }}>
+            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
               {!isVoterMode && showBoxesOnCard && (
                 <>
