@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v7_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v8_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -13,7 +13,6 @@ const AADHAAR_CARD_SPEC = {
   renderScale: AADHAAR_OUTPUT_DPI / 72,
 };
 
-// Exact calibrated boxes from user screenshot for e-Aadhaar
 const CARD_PRESETS = {
   eaadhaar: {
     label: 'e-Aadhaar PDF (Bottom Cut)',
@@ -90,14 +89,12 @@ function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
 
   rCtx.drawImage(sourceImg, tx, ty, tw, th, 0, 0, tw, th);
 
-  // 3x stronger bolding calibrated for 600 DPI cards
   if (textBoldness > 0) {
     const baseRegion = document.createElement('canvas');
     baseRegion.width = tw;
     baseRegion.height = th;
     baseRegion.getContext('2d').drawImage(regionCanvas, 0, 0);
 
-    // Scale radius with image resolution (at 600 DPI, 2022px wide -> strong crisp ink thickness)
     const dpiFactor = Math.max(1, w / 1011);
     const dirs = [
       [1, 0],
@@ -123,12 +120,10 @@ function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
     rCtx.restore();
   }
 
-  // Clear original box with white
   ctx.save();
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(tx, ty, tw, th);
 
-  // Draw enlarged/moved text WITHOUT clipping box boundaries so enlarged letters NEVER cut off!
   const scale = textScalePercent / 100;
   const destX = tx + Math.round((offsetX / 100) * w);
   const destY = ty + Math.round((offsetY / 100) * h);
@@ -239,7 +234,6 @@ function enhanceCardCanvas(baseDataUrl, options) {
           ctx.restore();
         }
 
-        // Move/Shrink disclaimer first so enlarged Name/DOB text stays cleanly visible above it
         if (needsFrontDisclaimerEdit && frontDisclaimerBox) {
           applyBoxShrinkAndMove(ctx, img, frontDisclaimerBox, {
             scalePercent: disclaimerScale,
@@ -298,13 +292,11 @@ export default function PvcIdCardMaker() {
   const [showFullPdfInspector, setShowFullPdfInspector] = useState(false);
   const [pdfInspectorZoom, setPdfInspectorZoom] = useState(1);
 
-  // Photo & Text Enhancement Controls
   const [photoBrightness, setPhotoBrightness] = useState(133);
   const [photoContrast, setPhotoContrast] = useState(100);
-  const [textBoldness, setTextBoldness] = useState(4); // 0 to 12 (3x stronger)
-  const [textScale, setTextScale] = useState(100); // 100% to 140% unclipped font scale
+  const [textBoldness, setTextBoldness] = useState(4);
+  const [textScale, setTextScale] = useState(100);
 
-  // Shrink + Position Offset (Up/Down & Left/Right) Controls
   const [disclaimerScale, setDisclaimerScale] = useState(100);
   const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(0);
   const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(0);
@@ -916,7 +908,7 @@ export default function PvcIdCardMaker() {
               </div>
             </div>
 
-            {/* Row C: Shrink + Up/Down & Left/Right Move for Front Disclaimer, Back Address & Back QR */}
+            {/* Row C: Shrink + Up/Down & Left/Right Move */}
             <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gap: '12px' }}>
               <div className="mnc-preset-row" style={{ justifyContent: 'space-between' }}>
                 <strong style={{ fontSize: '13px', color: '#0f172a' }}>
@@ -940,7 +932,6 @@ export default function PvcIdCardMaker() {
                 </button>
               </div>
 
-              {/* 1. Front Disclaimer Text Size + Left/Right + Up/Down */}
               <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fed7aa' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c', marginBottom: '6px' }}>
                   🟠 1. Front Disclaimer Box (Size & Move):
@@ -965,7 +956,6 @@ export default function PvcIdCardMaker() {
                 </div>
               </div>
 
-              {/* 2. Back Address Text Left/Right + Up/Down */}
               <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: '#1d4ed8', marginBottom: '6px' }}>
                   🔵 2. Back Address Text (Move Left/Right & Up/Down):
@@ -986,7 +976,6 @@ export default function PvcIdCardMaker() {
                 </div>
               </div>
 
-              {/* 3. Back QR Code Size + Left/Right + Up/Down */}
               <div style={{ background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd6fe' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: '#6d28d9', marginBottom: '6px' }}>
                   🟣 3. Back QR Code (Size & Move Left/Right, Up/Down):
@@ -1012,7 +1001,6 @@ export default function PvcIdCardMaker() {
               </div>
             </div>
 
-            {/* Optional Fine-Tuning for All 5 Selection Boxes */}
             {showBoxTuning && (
               <div style={{ paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'grid', gap: '10px' }}>
                 <div className="mnc-calib-inputs">
@@ -1062,7 +1050,6 @@ export default function PvcIdCardMaker() {
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet`}
             style={{ '--pvc-preview-zoom': previewZoom }}
           >
-            {/* Front Card */}
             <div style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
               {showBoxesOnCard && (
@@ -1110,7 +1097,6 @@ export default function PvcIdCardMaker() {
               )}
             </div>
 
-            {/* Back Card */}
             <div style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
               {showBoxesOnCard && (
