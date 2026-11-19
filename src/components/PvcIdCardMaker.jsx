@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
-import { buildParsedAadhaarCards, AADHAAR_PVC_SPEC } from '../utils/aadhaarTemplateParser';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v31_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v32_';
+
+const AADHAAR_OUTPUT_DPI = 600;
+const AADHAAR_CARD_SPEC = {
+  widthMm: 85.6,
+  heightMm: 54.0,
+  dpi: AADHAAR_OUTPUT_DPI,
+  pxWidth: Math.round((85.6 * AADHAAR_OUTPUT_DPI) / 25.4),
+  pxHeight: Math.round((54.0 * AADHAAR_OUTPUT_DPI) / 25.4),
+  renderScale: AADHAAR_OUTPUT_DPI / 72,
+};
 
 const COMPACT_300_DPI = 300;
 const COMPACT_CARD_SPEC = {
@@ -17,18 +26,23 @@ const COMPACT_CARD_SPEC = {
 
 const CARD_PRESETS = {
   eaadhaar: {
-    label: 'e-Aadhaar PDF (Auto-Fit Template)',
+    label: 'e-Aadhaar PDF (High-DPI Direct)',
     y: 72.2,
     h: 20.6,
     frontX: 7.6,
     backX: 50.5,
     w: 42.0,
+    photoBox: { x: 10.5, y: 22.3, w: 19.5, h: 37.5 },
+    textZones: [
+      { x: 32.0, y: 19.0, w: 46.0, h: 32.0 }, // Front Name / DOB / Gender
+      { x: 4.0, y: 17.5, w: 57.0, h: 43.0 },  // Back Address
+    ],
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
     y: 10.9,
     h: 19.1,
-    frontX: 5,
+    frontX: 5.0,
     backX: 54.4,
     w: 42.4,
   },
@@ -50,19 +64,126 @@ const CARD_PRESETS = {
   },
 };
 
+function drawBoldCardBorder(ctx, width, height) {
+  const thickness = Math.max(4, Math.round(Math.min(width, height) * 0.012));
+  ctx.save();
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = thickness;
+  ctx.strokeRect(thickness / 2, thickness / 2, width - thickness, height - thickness);
+  ctx.restore();
+}
+
+function applyCleanTextCrispness(ctx, img, zone, boldLevel) {
+  if (!zone || boldLevel <= 0) return;
+  const w = img.width;
+  const h = img.height;
+  const zx = Math.round((zone.x / 100) * w);
+  const zy = Math.round((zone.y / 100) * h);
+  const zw = Math.round((zone.w / 100) * w);
+  const zh = Math.round((zone.h / 100) * h);
+  if (zw <= 0 || zh <= 0) return;
+
+  const patch = document.createElement('canvas');
+  patch.width = zw;
+  patch.height = zh;
+  const pCtx = patch.getContext('2d');
+  pCtx.imageSmoothingEnabled = true;
+  pCtx.imageSmoothingQuality = 'high';
+
+  const contrast = 100 + Math.min(18, boldLevel * 3);
+  pCtx.filter = `contrast(${contrast}%)`;
+  pCtx.drawImage(img, zx, zy, zw, zh, 0, 0, zw, zh);
+  pCtx.filter = 'none';
+
+  const base = document.createElement('canvas');
+  base.width = zw;
+  base.height = zh;
+  base.getContext('2d').drawImage(patch, 0, 0);
+
+  const shifts = [
+    [0.45, 0],
+    [-0.45, 0],
+    [0, 0.45],
+    [0, -0.45],
+  ];
+  const count = Math.min(4, boldLevel);
+  pCtx.save();
+  pCtx.globalCompositeOperation = 'darken';
+  pCtx.globalAlpha = 0.42;
+  for (let i = 0; i < count; i++) {
+    const [dx, dy] = shifts[i % shifts.length];
+    pCtx.drawImage(base, dx, dy);
+  }
+  pCtx.restore();
+
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(zx, zy, zw, zh);
+  ctx.drawImage(patch, zx, zy);
+  ctx.restore();
+}
+
+function polishRealCard(baseUrl, options) {
+  const { side, photoBox, textZones = [], photoBrightness, photoContrast, textBoldness, withBorder } = options;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width;
+      const h = img.height;
+      if (!w || !h) {
+        resolve(baseUrl);
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      if (side === 'front' && photoBox && (photoBrightness !== 100 || photoContrast !== 100)) {
+        const px = Math.round((photoBox.x / 100) * w);
+        const py = Math.round((photoBox.y / 100) * h);
+        const pw = Math.round((photoBox.w / 100) * w);
+        const ph = Math.round((photoBox.h / 100) * h);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(px, py, pw, ph);
+        ctx.clip();
+        ctx.filter = `brightness(${photoBrightness}%) contrast(${photoContrast}%)`;
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+      }
+
+      if (textBoldness > 0 && textZones.length > 0) {
+        textZones.forEach((zone) => applyCleanTextCrispness(ctx, img, zone, textBoldness));
+      }
+
+      if (withBorder) {
+        drawBoldCardBorder(ctx, w, h);
+      }
+
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(baseUrl);
+    img.src = baseUrl;
+  });
+}
+
 export default function PvcIdCardMaker() {
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfPassword, setPdfPassword] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('eaadhaar');
-  const [useTemplateParser, setUseTemplateParser] = useState(true);
   const [layoutMode, setLayoutMode] = useState('a4');
   const [previewZoom, setPreviewZoom] = useState(1.25);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const [photoBrightness, setPhotoBrightness] = useState(120);
+  const [photoBrightness, setPhotoBrightness] = useState(125);
   const [photoContrast, setPhotoContrast] = useState(105);
-  const [boldWeight, setBoldWeight] = useState('700');
+  const [textBoldness, setTextBoldness] = useState(3);
 
   const [crop, setCrop] = useState(() => {
     try {
@@ -73,18 +194,18 @@ export default function PvcIdCardMaker() {
     }
   });
 
+  const [rawPair, setRawPair] = useState(null);
   const [cardPair, setCardPair] = useState(null);
-  const [parsedInfo, setParsedInfo] = useState(null);
 
   const isAadhaarMode = selectedPreset === 'eaadhaar';
   const isVoterMode = selectedPreset === 'voterId';
   const hasCardBorder = isAadhaarMode || isVoterMode;
   const outputSpec = isAadhaarMode
-    ? AADHAAR_PVC_SPEC
+    ? AADHAAR_CARD_SPEC
     : isVoterMode
       ? COMPACT_CARD_SPEC
       : SHOP_CONFIG.cr80CardSpec;
-  const outputDpi = isAadhaarMode ? AADHAAR_PVC_SPEC.dpi : isVoterMode ? COMPACT_300_DPI : 300;
+  const outputDpi = isAadhaarMode ? AADHAAR_OUTPUT_DPI : isVoterMode ? COMPACT_300_DPI : 300;
 
   useEffect(() => {
     try {
@@ -120,35 +241,10 @@ export default function PvcIdCardMaker() {
 
     setLoading(true);
     setErrorMsg('');
-    setParsedInfo(null);
 
     try {
-      if (isAadhaarMode && useTemplateParser) {
-        const result = await buildParsedAadhaarCards(pdfFile, pdfPassword.trim(), {
-          photoBrightness,
-          photoContrast,
-          boldWeight,
-        });
-        setParsedInfo(result.parsed);
-        setCardPair({
-          name: pdfFile.name.replace(/\.pdf$/i, ''),
-          frontUrl: result.frontUrl,
-          backUrl: result.backUrl,
-          dpi: result.dpi,
-          widthMm: result.widthMm,
-          heightMm: result.heightMm,
-          hasBorder: true,
-        });
-        return;
-      }
-
       const { pxWidth, pxHeight } = outputSpec;
-      const sourceRenderScale = isAadhaarMode
-        ? AADHAAR_PVC_SPEC.renderScale
-        : isVoterMode
-          ? COMPACT_CARD_SPEC.renderScale
-          : 3;
-      const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
+      const pageCanvas = await renderPdfPageToCanvas(pdfFile, outputSpec.renderScale, pdfPassword.trim());
 
       const frontUrl = cropPercentToCardCanvas(
         pageCanvas,
@@ -163,14 +259,13 @@ export default function PvcIdCardMaker() {
         pxHeight
       );
 
-      setCardPair({
+      setRawPair({
         name: pdfFile.name.replace(/\.pdf$/i, ''),
         frontUrl,
         backUrl,
         dpi: outputDpi,
         widthMm: 90,
         heightMm: 60,
-        hasBorder: hasCardBorder,
       });
     } catch (err) {
       if (err?.name === 'PasswordException') {
@@ -184,11 +279,47 @@ export default function PvcIdCardMaker() {
   };
 
   useEffect(() => {
-    if (pdfFile && isAadhaarMode && useTemplateParser && cardPair) {
-      handleExtract();
+    if (!rawPair) {
+      setCardPair(null);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoBrightness, photoContrast, boldWeight]);
+
+    let cancelled = false;
+    const presetConfig = CARD_PRESETS[selectedPreset] || CARD_PRESETS.eaadhaar;
+    const frontZones = isAadhaarMode ? [presetConfig.textZones[0]] : [];
+    const backZones = isAadhaarMode ? [presetConfig.textZones[1]] : [];
+
+    Promise.all([
+      polishRealCard(rawPair.frontUrl, {
+        side: 'front',
+        photoBox: presetConfig.photoBox,
+        textZones: frontZones,
+        photoBrightness,
+        photoContrast,
+        textBoldness,
+        withBorder: hasCardBorder,
+      }),
+      polishRealCard(rawPair.backUrl, {
+        side: 'back',
+        textZones: backZones,
+        photoBrightness: 100,
+        photoContrast: 100,
+        textBoldness,
+        withBorder: hasCardBorder,
+      }),
+    ]).then(([frontPolished, backPolished]) => {
+      if (cancelled) return;
+      setCardPair({
+        ...rawPair,
+        frontUrl: frontPolished,
+        backUrl: backPolished,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawPair, selectedPreset, isAadhaarMode, hasCardBorder, photoBrightness, photoContrast, textBoldness]);
 
   const downloadSide = (side) => {
     if (!cardPair) return;
@@ -281,7 +412,7 @@ export default function PvcIdCardMaker() {
 
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> Document Parsing + Auto-Fit Template @ {AADHAAR_PVC_SPEC.dpi} DPI ({AADHAAR_PVC_SPEC.pxWidth}×{AADHAAR_PVC_SPEC.pxHeight}px) | Card: 90 × 60 mm, Gap: 2mm.
+          🔒 <strong>100% Local Processing:</strong> High-DPI Direct Card Crop ({outputDpi} DPI) | Card: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
         </span>
       </div>
 
@@ -324,20 +455,6 @@ export default function PvcIdCardMaker() {
             </div>
           )}
 
-          {isAadhaarMode && (
-            <div className="mnc-upload-box">
-              <label>Mode</label>
-              <select
-                value={useTemplateParser ? 'template' : 'raw'}
-                onChange={(e) => setUseTemplateParser(e.target.value === 'template')}
-                style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-              >
-                <option value="template">Auto-Fit Template (Recommended)</option>
-                <option value="raw">Direct Crop Fallback</option>
-              </select>
-            </div>
-          )}
-
           <div className="mnc-upload-box">
             <label>Print Output Layout</label>
             <select
@@ -351,35 +468,36 @@ export default function PvcIdCardMaker() {
           </div>
         </div>
 
-        {!useTemplateParser && (
-          <div className="mnc-yellow-calibration">
-            <div className="mnc-calib-header">
-              <strong>🎯 Direct Crop Calibration Bar (% of PDF Page):</strong>
-            </div>
-            <div className="mnc-calib-inputs">
-              <label>
-                Top Y (%)
-                <input type="number" step="0.1" value={crop.y} onChange={(e) => updateField('y', e.target.value)} />
-              </label>
-              <label>
-                Height (%)
-                <input type="number" step="0.1" value={crop.h} onChange={(e) => updateField('h', e.target.value)} />
-              </label>
-              <label>
-                Front X (%)
-                <input type="number" step="0.1" value={crop.frontX} onChange={(e) => updateField('frontX', e.target.value)} />
-              </label>
-              <label>
-                Back X (%)
-                <input type="number" step="0.1" value={crop.backX} onChange={(e) => updateField('backX', e.target.value)} />
-              </label>
-              <label>
-                Width (%)
-                <input type="number" step="0.1" value={crop.w} onChange={(e) => updateField('w', e.target.value)} />
-              </label>
-            </div>
+        <div className="mnc-yellow-calibration">
+          <div className="mnc-calib-header">
+            <strong>🎯 Crop Calibration Bar (% of PDF Page) — Auto-Saved:</strong>
           </div>
-        )}
+          <div className="mnc-calib-inputs">
+            <label>
+              Top Y (%)
+              <input type="number" step="0.1" value={crop.y} onChange={(e) => updateField('y', e.target.value)} />
+            </label>
+            <label>
+              Height (%)
+              <input type="number" step="0.1" value={crop.h} onChange={(e) => updateField('h', e.target.value)} />
+            </label>
+            <label>
+              Front X (%)
+              <input type="number" step="0.1" value={crop.frontX} onChange={(e) => updateField('frontX', e.target.value)} />
+            </label>
+            <label>
+              Back X (%)
+              <input type="number" step="0.1" value={crop.backX} onChange={(e) => updateField('backX', e.target.value)} />
+            </label>
+            <label>
+              Width (%)
+              <input type="number" step="0.1" value={crop.w} onChange={(e) => updateField('w', e.target.value)} />
+            </label>
+            <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => applyPreset(selectedPreset)}>
+              Reset Preset
+            </button>
+          </div>
+        </div>
 
         {errorMsg && (
           <p style={{ color: '#dc2626', fontSize: '13px', fontWeight: 600, marginTop: '10px' }}>
@@ -389,7 +507,7 @@ export default function PvcIdCardMaker() {
 
         <div style={{ marginTop: '16px' }}>
           <button type="button" className="mnc-btn mnc-btn-primary" disabled={loading} onClick={handleExtract}>
-            {loading ? `⏳ Parsing & Rendering (${outputDpi} DPI)...` : '⚡ Generate Auto-Fit PVC Card'}
+            {loading ? `⏳ Rendering & Cropping (${outputDpi} DPI)...` : '⚡ Extract Front & Back Card'}
           </button>
         </div>
       </div>
@@ -398,15 +516,10 @@ export default function PvcIdCardMaker() {
         <div className={`mnc-card mnc-mt-20 pvc-preview-card ${layoutMode === 'a4' ? 'pvc-a4-print-card' : ''}`}>
           <div className="mnc-row-between">
             <div>
-              <h3>2. Card Preview ({useTemplateParser && isAadhaarMode ? 'Auto-Fit Template Mode' : 'Crop Mode'})</h3>
+              <h3>2. Card Preview ({layoutMode === 'tray' ? 'PVC Tray Alignment' : 'A4 Print Layout'})</h3>
               <p className="mnc-muted">
                 Card Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI | Gap: 2mm | Top: 3mm | L/R: 5mm
               </p>
-              {parsedInfo && (
-                <p className="mnc-muted">
-                  Parsed: <strong>{parsedInfo.name}</strong> {parsedInfo.dobOrYob ? `• ${parsedInfo.dobOrYob}` : ''} {parsedInfo.gender ? `• ${parsedInfo.gender}` : ''}
-                </p>
-              )}
             </div>
             <div className="mnc-preset-row">
               <div className="pvc-preview-zoom-controls" aria-label="Preview zoom controls">
@@ -440,56 +553,53 @@ export default function PvcIdCardMaker() {
             </div>
           </div>
 
-          {isAadhaarMode && useTemplateParser && (
-            <div
-              style={{
-                marginTop: '12px',
-                background: '#f8fafc',
-                border: '1px solid #cbd5e1',
-                borderRadius: '10px',
-                padding: '10px 14px',
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '18px',
-                alignItems: 'center',
-              }}
-            >
-              <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                Photo Brightness ({photoBrightness}%):
-                <input
-                  type="range"
-                  min="90"
-                  max="160"
-                  value={photoBrightness}
-                  onChange={(e) => setPhotoBrightness(Number(e.target.value))}
-                />
-              </label>
+          <div
+            style={{
+              marginTop: '12px',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              borderRadius: '10px',
+              padding: '10px 14px',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '18px',
+              alignItems: 'center',
+            }}
+          >
+            <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Photo Brightness ({photoBrightness}%):
+              <input
+                type="range"
+                min="90"
+                max="160"
+                value={photoBrightness}
+                onChange={(e) => setPhotoBrightness(Number(e.target.value))}
+              />
+            </label>
 
-              <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                Photo Contrast ({photoContrast}%):
-                <input
-                  type="range"
-                  min="85"
-                  max="140"
-                  value={photoContrast}
-                  onChange={(e) => setPhotoContrast(Number(e.target.value))}
-                />
-              </label>
+            <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Photo Contrast ({photoContrast}%):
+              <input
+                type="range"
+                min="85"
+                max="140"
+                value={photoContrast}
+                onChange={(e) => setPhotoContrast(Number(e.target.value))}
+              />
+            </label>
 
-              <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                Text Weight:
-                <select
-                  value={boldWeight}
-                  onChange={(e) => setBoldWeight(e.target.value)}
-                  style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                >
-                  <option value="600">Medium Bold</option>
-                  <option value="700">Strong Bold (Default)</option>
-                  <option value="800">Extra Bold</option>
-                </select>
-              </label>
-            </div>
-          )}
+            <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Text Crispness (0–6):
+              <input
+                type="range"
+                min="0"
+                max="6"
+                step="1"
+                value={textBoldness}
+                onChange={(e) => setTextBoldness(Number(e.target.value))}
+              />
+            </label>
+          </div>
 
           <div
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet mnc-pvc-print-only-stage`}
