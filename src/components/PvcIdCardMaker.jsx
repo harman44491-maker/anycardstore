@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v26_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v27_';
 
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
@@ -34,8 +34,8 @@ const CARD_PRESETS = {
     w: 42.0,
     photoBox: { x: 10.5, y: 22.3, w: 19.5, h: 37.5 },
     frontTextBox: { x: 32.5, y: 20.0, w: 43.0, h: 27.5 },
-    frontDisclaimerBox: { x: 33.5, y: 55.0, w: 64.0, h: 28.0 },
-    backTextBox: { x: 4.5, y: 18.5, w: 56.0, h: 48.0 },
+    frontDisclaimerBox: { x: 33.5, y: 58.5, w: 64.0, h: 24.0 },
+    backTextBox: { x: 4.5, y: 18.0, w: 56.0, h: 39.0 },
     backQrBox: { x: 60.5, y: 18.5, w: 39.0, h: 58.0 },
   },
   voterId: {
@@ -295,8 +295,12 @@ function applyBoxShrinkAndMove(ctx, sourceImg, box, options) {
   const baseDestX = align === 'center' ? bx + Math.round((bw - newW) / 2) : bx;
   const baseDestY = align === 'center' ? by + Math.round((bh - newH) / 2) : by;
 
-  const destX = baseDestX + Math.round((offsetX / 100) * w);
-  const destY = baseDestY + Math.round((offsetY / 100) * h);
+  const rawDestX = baseDestX + Math.round((offsetX / 100) * w);
+  const rawDestY = baseDestY + Math.round((offsetY / 100) * h);
+
+  const minAllowedY = align === 'top-left' ? Math.max(by, rawDestY) : rawDestY;
+  const destX = Math.max(0, Math.min(rawDestX, w - newW));
+  const destY = Math.max(0, Math.min(minAllowedY, h - newH));
 
   ctx.save();
   ctx.fillStyle = '#ffffff';
@@ -441,9 +445,9 @@ export default function PvcIdCardMaker() {
   const [textBoldness, setTextBoldness] = useState(7);
   const [textScale, setTextScale] = useState(124);
 
-  const [disclaimerScale, setDisclaimerScale] = useState(68);
-  const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(4.0);
-  const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(5.5);
+  const [disclaimerScale, setDisclaimerScale] = useState(66);
+  const [disclaimerOffsetX, setDisclaimerOffsetX] = useState(3.5);
+  const [disclaimerOffsetY, setDisclaimerOffsetY] = useState(2.0);
 
   const [backAddressOffsetX, setBackAddressOffsetX] = useState(0);
   const [backAddressOffsetY, setBackAddressOffsetY] = useState(0);
@@ -510,8 +514,8 @@ export default function PvcIdCardMaker() {
   const activePhotoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 10.5, y: 22.3, w: 19.5, h: 37.5 };
   const activeFrontTextBox = crop.frontTextBox || CARD_PRESETS[selectedPreset]?.frontTextBox || { x: 32.5, y: 20.0, w: 43.0, h: 27.5 };
   const activeFrontDisclaimerBox =
-    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 33.5, y: 55.0, w: 64.0, h: 28.0 };
-  const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 18.5, w: 56.0, h: 48.0 };
+    crop.frontDisclaimerBox || CARD_PRESETS[selectedPreset]?.frontDisclaimerBox || { x: 33.5, y: 58.5, w: 64.0, h: 24.0 };
+  const activeBackTextBox = crop.backTextBox || CARD_PRESETS[selectedPreset]?.backTextBox || { x: 4.5, y: 18.0, w: 56.0, h: 39.0 };
   const activeBackQrBox = crop.backQrBox || CARD_PRESETS[selectedPreset]?.backQrBox || { x: 60.5, y: 18.5, w: 39.0, h: 58.0 };
 
   const updateSubBoxField = (boxKey, field, val) => {
@@ -1208,9 +1212,9 @@ export default function PvcIdCardMaker() {
                     type="button"
                     className="mnc-btn mnc-btn-ghost"
                     onClick={() => {
-                      setDisclaimerScale(68);
-                      setDisclaimerOffsetX(4.0);
-                      setDisclaimerOffsetY(5.5);
+                      setDisclaimerScale(66);
+                      setDisclaimerOffsetX(3.5);
+                      setDisclaimerOffsetY(2.0);
                       setBackAddressOffsetX(0);
                       setBackAddressOffsetY(0);
                       setQrScale(68);
