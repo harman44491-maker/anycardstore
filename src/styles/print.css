@@ -8,6 +8,7 @@
   .mnc-topbar,
   .mnc-privacy-banner,
   .mnc-btn,
+  .pvc-preview-zoom-controls,
   .mnc-card:not(:has(.printable-sheet)) {
     display: none !important;
   }
@@ -48,7 +49,7 @@
     display: grid !important;
     grid-template-columns: 1fr !important;
     grid-auto-rows: 57mm !important;
-    row-gap: 1mm !important;
+    row-gap: 2mm !important;
     column-gap: 0 !important;
     align-content: start !important;
     justify-items: center !important;
@@ -85,5 +86,9 @@
     border: 0 !important;
     border-radius: 0 !important;
     object-fit: fill !important;
+  }
+
+  .pvc-preview-zoom {
+    zoom: 1 !important;
   }
 }

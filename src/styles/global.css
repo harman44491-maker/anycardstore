@@ -317,6 +317,22 @@ body {
   margin-top: 14px;
 }
 
+.pvc-preview-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pvc-preview-zoom {
+  zoom: var(--pvc-preview-zoom, 1);
+}
+
 .mnc-a4-preview,
 .mnc-pvc-stage {
   margin-top: 16px;

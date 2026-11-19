@@ -53,6 +53,7 @@ export default function PvcIdCardMaker() {
   const [pdfPassword, setPdfPassword] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('eaadhaar');
   const [layoutMode, setLayoutMode] = useState('a4');
+  const [previewZoom, setPreviewZoom] = useState(1.25);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -256,8 +257,14 @@ export default function PvcIdCardMaker() {
             <div>
               <h3>2. Card Preview ({layoutMode === 'tray' ? 'PVC Tray Alignment' : 'A4 Print Layout'})</h3>
               <p className="mnc-muted">Exact CR80 Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI</p>
+              <p className="mnc-muted">Preview zoom affects the screen view only; the cropped file and print size stay unchanged.</p>
             </div>
             <div className="mnc-preset-row">
+              <div className="pvc-preview-zoom-controls" aria-label="Preview zoom controls">
+                <button type="button" className="mnc-btn mnc-btn-ghost" aria-label="Zoom out" disabled={previewZoom <= 1} onClick={() => setPreviewZoom((zoom) => Math.max(1, +(zoom - 0.25).toFixed(2)))}>−</button>
+                <span>{Math.round(previewZoom * 100)}%</span>
+                <button type="button" className="mnc-btn mnc-btn-ghost" aria-label="Zoom in" disabled={previewZoom >= 2.5} onClick={() => setPreviewZoom((zoom) => Math.min(2.5, +(zoom + 0.25).toFixed(2)))}>+</button>
+              </div>
               <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadSide('front')}>
                 ⬇ Front PNG
               </button>
@@ -270,7 +277,7 @@ export default function PvcIdCardMaker() {
             </div>
           </div>
 
-          <div className={`mnc-pvc-stage ${layoutMode} printable-sheet`}>
+          <div className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet`} style={{ '--pvc-preview-zoom': previewZoom }}>
             <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
             <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
           </div>
