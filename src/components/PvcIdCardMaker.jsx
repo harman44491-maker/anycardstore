@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v32_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v33_';
 
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
@@ -34,8 +34,8 @@ const CARD_PRESETS = {
     w: 42.0,
     photoBox: { x: 10.5, y: 22.3, w: 19.5, h: 37.5 },
     textZones: [
-      { x: 32.0, y: 19.0, w: 46.0, h: 32.0 }, // Front Name / DOB / Gender
-      { x: 4.0, y: 17.5, w: 57.0, h: 43.0 },  // Back Address
+      { x: 32.0, y: 19.0, w: 46.0, h: 32.0 },
+      { x: 4.0, y: 17.5, w: 57.0, h: 43.0 },
     ],
   },
   voterId: {
@@ -63,15 +63,6 @@ const CARD_PRESETS = {
     w: 43.0,
   },
 };
-
-function drawBoldCardBorder(ctx, width, height) {
-  const thickness = Math.max(4, Math.round(Math.min(width, height) * 0.012));
-  ctx.save();
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = thickness;
-  ctx.strokeRect(thickness / 2, thickness / 2, width - thickness, height - thickness);
-  ctx.restore();
-}
 
 function applyCleanTextCrispness(ctx, img, zone, boldLevel) {
   if (!zone || boldLevel <= 0) return;
@@ -124,7 +115,7 @@ function applyCleanTextCrispness(ctx, img, zone, boldLevel) {
 }
 
 function polishRealCard(baseUrl, options) {
-  const { side, photoBox, textZones = [], photoBrightness, photoContrast, textBoldness, withBorder } = options;
+  const { side, photoBox, textZones = [], photoBrightness, photoContrast, textBoldness } = options;
 
   return new Promise((resolve) => {
     const img = new Image();
@@ -161,10 +152,6 @@ function polishRealCard(baseUrl, options) {
         textZones.forEach((zone) => applyCleanTextCrispness(ctx, img, zone, textBoldness));
       }
 
-      if (withBorder) {
-        drawBoldCardBorder(ctx, w, h);
-      }
-
       resolve(canvas.toDataURL('image/png'));
     };
     img.onerror = () => resolve(baseUrl);
@@ -199,7 +186,6 @@ export default function PvcIdCardMaker() {
 
   const isAadhaarMode = selectedPreset === 'eaadhaar';
   const isVoterMode = selectedPreset === 'voterId';
-  const hasCardBorder = isAadhaarMode || isVoterMode;
   const outputSpec = isAadhaarMode
     ? AADHAAR_CARD_SPEC
     : isVoterMode
@@ -297,7 +283,6 @@ export default function PvcIdCardMaker() {
         photoBrightness,
         photoContrast,
         textBoldness,
-        withBorder: hasCardBorder,
       }),
       polishRealCard(rawPair.backUrl, {
         side: 'back',
@@ -305,7 +290,6 @@ export default function PvcIdCardMaker() {
         photoBrightness: 100,
         photoContrast: 100,
         textBoldness,
-        withBorder: hasCardBorder,
       }),
     ]).then(([frontPolished, backPolished]) => {
       if (cancelled) return;
@@ -319,7 +303,7 @@ export default function PvcIdCardMaker() {
     return () => {
       cancelled = true;
     };
-  }, [rawPair, selectedPreset, isAadhaarMode, hasCardBorder, photoBrightness, photoContrast, textBoldness]);
+  }, [rawPair, selectedPreset, isAadhaarMode, photoBrightness, photoContrast, textBoldness]);
 
   const downloadSide = (side) => {
     if (!cardPair) return;
@@ -353,10 +337,7 @@ export default function PvcIdCardMaker() {
           max-height: 60mm !important;
           display: block !important;
           object-fit: fill !important;
-        }
-
-        .mnc-pvc-card-bordered {
-          border: 3px solid #000000 !important;
+          border: none !important;
           box-sizing: border-box !important;
         }
 
@@ -412,7 +393,7 @@ export default function PvcIdCardMaker() {
 
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> High-DPI Direct Card Crop ({outputDpi} DPI) | Card: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
+          🔒 <strong>100% Local Processing:</strong> High-DPI Direct Card Crop ({outputDpi} DPI, No Border) | Card: 90 × 60 mm, Gap: 2mm, Top: 3mm, L/R: 5mm.
         </span>
       </div>
 
@@ -518,7 +499,7 @@ export default function PvcIdCardMaker() {
             <div>
               <h3>2. Card Preview ({layoutMode === 'tray' ? 'PVC Tray Alignment' : 'A4 Print Layout'})</h3>
               <p className="mnc-muted">
-                Card Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI | Gap: 2mm | Top: 3mm | L/R: 5mm
+                Card Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI | Gap: 2mm | Top: 3mm | L/R: 5mm | Border: None
               </p>
             </div>
             <div className="mnc-preset-row">
@@ -605,11 +586,11 @@ export default function PvcIdCardMaker() {
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet mnc-pvc-print-only-stage`}
             style={{ '--pvc-preview-zoom': previewZoom, marginTop: '3mm', marginLeft: '5mm', marginRight: '5mm', gap: '2mm' }}
           >
-            <div className={`mnc-pvc-card-box ${hasCardBorder ? 'mnc-pvc-card-bordered' : ''}`}>
+            <div className="mnc-pvc-card-box">
               <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
             </div>
 
-            <div className={`mnc-pvc-card-box ${hasCardBorder ? 'mnc-pvc-card-bordered' : ''}`}>
+            <div className="mnc-pvc-card-box">
               <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
             </div>
           </div>
