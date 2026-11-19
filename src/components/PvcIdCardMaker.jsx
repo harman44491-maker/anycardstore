@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_KEY = 'mnc_pvc_card_calibration_v1';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_crop_v2_';
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
   widthMm: 85.6,
@@ -21,6 +21,7 @@ const CARD_PRESETS = {
     frontX: 7.6,
     backX: 50.5,
     w: 42.0,
+    photoBox: { x: 4.5, y: 26.0, w: 23.0, h: 48.0 }, // Customer photo area on Front card (%)
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
@@ -29,6 +30,7 @@ const CARD_PRESETS = {
     frontX: 6.0,
     backX: 51.0,
     w: 43.0,
+    photoBox: { x: 5.0, y: 25.0, w: 24.0, h: 48.0 },
   },
   panCard: {
     label: 'e-PAN Card PDF',
@@ -37,6 +39,7 @@ const CARD_PRESETS = {
     frontX: 6.0,
     backX: 51.0,
     w: 43.0,
+    photoBox: { x: 5.0, y: 28.0, w: 22.0, h: 44.0 },
   },
   eshram: {
     label: 'e-Shram Card PDF',
@@ -45,8 +48,47 @@ const CARD_PRESETS = {
     frontX: 6.0,
     backX: 51.0,
     w: 43.0,
+    photoBox: { x: 5.0, y: 25.0, w: 23.0, h: 48.0 },
   },
 };
+
+// Helper: Apply selective brightness/contrast only to the photo region of the front card
+function applySelectivePhotoEnhance(baseDataUrl, photoBox, brightness, contrast, targetSide) {
+  return new Promise((resolve) => {
+    if (targetSide !== 'front' || (brightness === 100 && contrast === 100)) {
+      resolve(baseDataUrl);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+
+      // 1. Draw full card untouched (keeps QR & text razor sharp)
+      ctx.drawImage(img, 0, 0);
+
+      // 2. Re-draw ONLY the customer photo box with brightness/contrast filter
+      const px = Math.round((photoBox.x / 100) * img.width);
+      const py = Math.round((photoBox.y / 100) * img.height);
+      const pw = Math.round((photoBox.w / 100) * img.width);
+      const ph = Math.round((photoBox.h / 100) * img.height);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(px, py, pw, ph);
+      ctx.clip();
+      ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+      ctx.drawImage(img, 0, 0);
+      ctx.restore();
+
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.src = baseDataUrl;
+  });
+}
 
 export default function PvcIdCardMaker() {
   const [pdfFile, setPdfFile] = useState(null);
@@ -57,35 +99,40 @@ export default function PvcIdCardMaker() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Selective Photo Enhancement Controls
+  const [photoBrightness, setPhotoBrightness] = useState(112);
+  const [photoContrast, setPhotoContrast] = useState(106);
+
   const [crop, setCrop] = useState(() => {
     try {
-      const saved = localStorage.getItem(PVC_STORAGE_KEY);
-      if (!saved) return CARD_PRESETS.eaadhaar;
-      const savedCrop = JSON.parse(saved);
-      const previousAadhaarCrop = { y: 68.8, h: 24, frontX: 7.6, backX: 50.5, w: 42 };
-      const isPreviousAadhaarCrop = Object.entries(previousAadhaarCrop)
-        .every(([key, value]) => Number(savedCrop[key]) === value);
-      return isPreviousAadhaarCrop ? CARD_PRESETS.eaadhaar : savedCrop;
+      const saved = localStorage.getItem(`${PVC_STORAGE_PREFIX}eaadhaar`);
+      return saved ? JSON.parse(saved) : CARD_PRESETS.eaadhaar;
     } catch {
       return CARD_PRESETS.eaadhaar;
     }
   });
 
+  // Raw un-filtered crops + Enhanced output URLs
+  const [rawPair, setRawPair] = useState(null);
   const [cardPair, setCardPair] = useState(null);
+
   const outputSpec = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC : SHOP_CONFIG.cr80CardSpec;
   const outputDpi = selectedPreset === 'eaadhaar' ? AADHAAR_OUTPUT_DPI : 300;
 
   useEffect(() => {
     try {
-      localStorage.setItem(PVC_STORAGE_KEY, JSON.stringify(crop));
-    } catch {
-      // Ignore storage errors
-    }
-  }, [crop]);
+      localStorage.setItem(`${PVC_STORAGE_PREFIX}${selectedPreset}`, JSON.stringify(crop));
+    } catch {}
+  }, [crop, selectedPreset]);
 
   const applyPreset = (key) => {
     setSelectedPreset(key);
-    setCrop({ ...CARD_PRESETS[key] });
+    try {
+      const saved = localStorage.getItem(`${PVC_STORAGE_PREFIX}${key}`);
+      setCrop(saved ? JSON.parse(saved) : { ...CARD_PRESETS[key] });
+    } catch {
+      setCrop({ ...CARD_PRESETS[key] });
+    }
   };
 
   const updateField = (field, val) => {
@@ -107,26 +154,26 @@ export default function PvcIdCardMaker() {
 
     try {
       const { pxWidth, pxHeight } = outputSpec;
-      const sourceRenderScale = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC.renderScale : 3;
+      const sourceRenderScale = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC.renderScale : 4.16;
       const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
 
-      const frontUrl = cropPercentToCardCanvas(
+      const rawFront = cropPercentToCardCanvas(
         pageCanvas,
         { x: crop.frontX, y: crop.y, w: crop.w, h: crop.h },
         pxWidth,
         pxHeight
       );
-      const backUrl = cropPercentToCardCanvas(
+      const rawBack = cropPercentToCardCanvas(
         pageCanvas,
         { x: crop.backX, y: crop.y, w: crop.w, h: crop.h },
         pxWidth,
         pxHeight
       );
 
-      setCardPair({
+      setRawPair({
         name: pdfFile.name.replace(/\.pdf$/i, ''),
-        frontUrl,
-        backUrl,
+        frontUrl: rawFront,
+        backUrl: rawBack,
         dpi: outputDpi,
         widthMm: outputSpec.widthMm || 85.6,
         heightMm: outputSpec.heightMm || 54,
@@ -142,6 +189,30 @@ export default function PvcIdCardMaker() {
     }
   };
 
+  // Re-apply selective photo brightness/contrast live whenever sliders move
+  useEffect(() => {
+    if (!rawPair) {
+      setCardPair(null);
+      return;
+    }
+
+    let cancelled = false;
+    const photoBox = crop.photoBox || CARD_PRESETS[selectedPreset]?.photoBox || { x: 4.5, y: 26, w: 23, h: 48 };
+
+    applySelectivePhotoEnhance(rawPair.frontUrl, photoBox, photoBrightness, photoContrast, 'front')
+      .then((enhancedFront) => {
+        if (cancelled) return;
+        setCardPair({
+          ...rawPair,
+          frontUrl: enhancedFront,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawPair, photoBrightness, photoContrast, crop.photoBox, selectedPreset]);
+
   const downloadSide = (side) => {
     if (!cardPair) return;
     const link = document.createElement('a');
@@ -154,7 +225,7 @@ export default function PvcIdCardMaker() {
     <section>
       <div className="mnc-privacy-banner">
         <span>
-          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Customer ka password aur PDF data sirf browser mein process hota hai.
+          🔒 <strong>100% Local Processing:</strong> Aadhaar 600 DPI, baaki PVC cards 300 DPI. Selective photo brightness aur zoom browser mein hi kaam karte hain.
         </span>
       </div>
 
@@ -208,7 +279,7 @@ export default function PvcIdCardMaker() {
           <div className="mnc-calib-header">
             <strong>🎯 Crop Calibration Bar (% of PDF Page) — Auto-Saved:</strong>
             <span className="mnc-calib-hint">
-              Aadhaar ya Voter PDF mein card position thodi alag ho to yahan se adjust karein (CR80: 85.6mm × 54mm).
+              Card position adjust karein (CR80: 85.6mm × 54mm).
             </span>
           </div>
           <div className="mnc-calib-inputs">
@@ -252,18 +323,31 @@ export default function PvcIdCardMaker() {
       </div>
 
       {cardPair && (
-        <div className={`mnc-card mnc-mt-20 pvc-preview-card ${layoutMode === 'a4' ? 'pvc-a4-print-card' : ''}`}>
+        <div className="mnc-card mnc-mt-20">
           <div className="mnc-row-between">
             <div>
               <h3>2. Card Preview ({layoutMode === 'tray' ? 'PVC Tray Alignment' : 'A4 Print Layout'})</h3>
               <p className="mnc-muted">Exact CR80 Size: {cardPair.widthMm}mm × {cardPair.heightMm}mm @ {cardPair.dpi} DPI</p>
-              <p className="mnc-muted">Preview zoom only changes the screen view. For a clean A4 print, turn off Headers and footers in the print dialog.</p>
             </div>
             <div className="mnc-preset-row">
-              <div className="pvc-preview-zoom-controls" aria-label="Preview zoom controls">
-                <button type="button" className="mnc-btn mnc-btn-ghost" aria-label="Zoom out" disabled={previewZoom <= 1} onClick={() => setPreviewZoom((zoom) => Math.max(1, +(zoom - 0.25).toFixed(2)))}>−</button>
-                <span>{Math.round(previewZoom * 100)}%</span>
-                <button type="button" className="mnc-btn mnc-btn-ghost" aria-label="Zoom in" disabled={previewZoom >= 2.5} onClick={() => setPreviewZoom((zoom) => Math.min(2.5, +(zoom + 0.25).toFixed(2)))}>+</button>
+              <div className="pvc-preview-zoom-controls">
+                <button
+                  type="button"
+                  className="mnc-btn mnc-btn-ghost"
+                  disabled={previewZoom <= 0.75}
+                  onClick={() => setPreviewZoom((z) => Math.max(0.75, +(z - 0.25).toFixed(2)))}
+                >
+                  −
+                </button>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>{Math.round(previewZoom * 100)}%</span>
+                <button
+                  type="button"
+                  className="mnc-btn mnc-btn-ghost"
+                  disabled={previewZoom >= 2.5}
+                  onClick={() => setPreviewZoom((z) => Math.min(2.5, +(z + 0.25).toFixed(2)))}
+                >
+                  +
+                </button>
               </div>
               <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadSide('front')}>
                 ⬇ Front PNG
@@ -277,7 +361,45 @@ export default function PvcIdCardMaker() {
             </div>
           </div>
 
-          <div className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet`} style={{ '--pvc-preview-zoom': previewZoom }}>
+          {/* Selective Photo Brightness & Contrast Bar */}
+          <div className="mnc-photo-retouch-bar">
+            <strong>✨ Customer Photo Retouch (Sirf Photo Saaf Karein, Text/QR Untouched):</strong>
+            <label>
+              Photo Brightness ({photoBrightness}%):
+              <input
+                type="range"
+                min="80"
+                max="160"
+                value={photoBrightness}
+                onChange={(e) => setPhotoBrightness(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Photo Contrast ({photoContrast}%):
+              <input
+                type="range"
+                min="80"
+                max="150"
+                value={photoContrast}
+                onChange={(e) => setPhotoContrast(Number(e.target.value))}
+              />
+            </label>
+            <button
+              type="button"
+              className="mnc-btn mnc-btn-ghost"
+              onClick={() => {
+                setPhotoBrightness(100);
+                setPhotoContrast(100);
+              }}
+            >
+              Original Photo
+            </button>
+          </div>
+
+          <div
+            className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom printable-sheet`}
+            style={{ '--pvc-preview-zoom': previewZoom }}
+          >
             <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
             <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
           </div>
