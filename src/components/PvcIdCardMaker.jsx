@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderPdfPageToCanvas, cropPercentToCardCanvas } from '../utils/pdfRenderer';
 import { SHOP_CONFIG } from '../config/shopConfig';
 
-const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v22_';
+const PVC_STORAGE_PREFIX = 'mnc_pvc_card_calibration_v24_';
 
 const AADHAAR_OUTPUT_DPI = 600;
 const AADHAAR_CARD_SPEC = {
@@ -40,11 +40,11 @@ const CARD_PRESETS = {
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
-    y: 13.5,
-    h: 25.5,
-    frontX: 5.2,
-    backX: 50.6,
-    w: 44.0,
+    y: 10.9,
+    h: 19.1,
+    frontX: 5,
+    backX: 54.4,
+    w: 42.4,
     photoBox: { x: 3.5, y: 21.0, w: 27.5, h: 55.0 },
     frontTextBox: { x: 31.0, y: 23.0, w: 63.0, h: 50.0 },
     frontDisclaimerBox: { x: 31.0, y: 73.0, w: 60.0, h: 15.0 },
@@ -83,6 +83,43 @@ function isValidImageUrl(url) {
   return typeof url === 'string' && url.length > 60 && (url.startsWith('data:image/') || url.startsWith('blob:'));
 }
 
+function drawBoldCardBorder(ctx, width, height) {
+  const thickness = Math.max(4, Math.round(Math.min(width, height) * 0.012));
+  ctx.save();
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = thickness;
+  ctx.strokeRect(thickness / 2, thickness / 2, width - thickness, height - thickness);
+  ctx.restore();
+}
+
+function addBorderToDataUrl(dataUrl, mimeType = 'image/png', quality = 0.92) {
+  return new Promise((resolve) => {
+    if (!isValidImageUrl(dataUrl)) {
+      resolve(dataUrl);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width;
+      const h = img.height;
+      if (!w || !h) {
+        resolve(dataUrl);
+        return;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      drawBoldCardBorder(ctx, w, h);
+      const outUrl = mimeType === 'image/jpeg' ? canvas.toDataURL('image/jpeg', quality) : canvas.toDataURL('image/png');
+      resolve(isValidImageUrl(outUrl) ? outUrl : dataUrl);
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 function createSafePreviewDataUrl(sourceCanvas, maxWidth = 800) {
   if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return '';
   try {
@@ -103,35 +140,67 @@ function createSafePreviewDataUrl(sourceCanvas, maxWidth = 800) {
   }
 }
 
-function safeCropCardUrl(sourceCanvas, rectPercent, outWidth, outHeight, mimeType = 'image/png', quality = 0.92) {
+function safeCropCardUrl(sourceCanvas, rectPercent, outWidth, outHeight, mimeType = 'image/png', quality = 0.92, withBorder = false) {
+  let baseUrl = '';
   try {
     const fromUtil = cropPercentToCardCanvas(sourceCanvas, rectPercent, outWidth, outHeight);
-    if (isValidImageUrl(fromUtil)) return fromUtil;
+    if (isValidImageUrl(fromUtil)) {
+      baseUrl = fromUtil;
+    }
   } catch {
     // Fallback below
   }
 
-  if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return '';
-  const { x, y, w, h } = rectPercent;
-  const target = document.createElement('canvas');
-  target.width = outWidth;
-  target.height = outHeight;
-  const ctx = target.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, outWidth, outHeight);
-  ctx.drawImage(
-    sourceCanvas,
-    (sourceCanvas.width * x) / 100,
-    (sourceCanvas.height * y) / 100,
-    (sourceCanvas.width * w) / 100,
-    (sourceCanvas.height * h) / 100,
-    0,
-    0,
-    outWidth,
-    outHeight
-  );
-  const url = mimeType === 'image/jpeg' ? target.toDataURL('image/jpeg', quality) : target.toDataURL('image/png');
-  return isValidImageUrl(url) ? url : '';
+  if (!baseUrl) {
+    if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return '';
+    const { x, y, w, h } = rectPercent;
+    const target = document.createElement('canvas');
+    target.width = outWidth;
+    target.height = outHeight;
+    const ctx = target.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, outWidth, outHeight);
+    ctx.drawImage(
+      sourceCanvas,
+      (sourceCanvas.width * x) / 100,
+      (sourceCanvas.height * y) / 100,
+      (sourceCanvas.width * w) / 100,
+      (sourceCanvas.height * h) / 100,
+      0,
+      0,
+      outWidth,
+      outHeight
+    );
+    baseUrl = mimeType === 'image/jpeg' ? target.toDataURL('image/jpeg', quality) : target.toDataURL('image/png');
+  }
+
+  if (!isValidImageUrl(baseUrl)) return '';
+  if (!withBorder) return baseUrl;
+
+  try {
+    const bordered = document.createElement('canvas');
+    bordered.width = outWidth;
+    bordered.height = outHeight;
+    const bCtx = bordered.getContext('2d');
+    bCtx.fillStyle = '#ffffff';
+    bCtx.fillRect(0, 0, outWidth, outHeight);
+    bCtx.drawImage(
+      sourceCanvas,
+      (sourceCanvas.width * rectPercent.x) / 100,
+      (sourceCanvas.height * rectPercent.y) / 100,
+      (sourceCanvas.width * rectPercent.w) / 100,
+      (sourceCanvas.height * rectPercent.h) / 100,
+      0,
+      0,
+      outWidth,
+      outHeight
+    );
+    drawBoldCardBorder(bCtx, outWidth, outHeight);
+    const outUrl = mimeType === 'image/jpeg' ? bordered.toDataURL('image/jpeg', quality) : bordered.toDataURL('image/png');
+    return isValidImageUrl(outUrl) ? outUrl : baseUrl;
+  } catch {
+    return baseUrl;
+  }
 }
 
 function applySelectiveTextBoldScaleAndMove(ctx, sourceImg, box, options) {
@@ -255,6 +324,7 @@ function enhanceCardCanvas(baseDataUrl, options) {
     qrScale,
     qrOffsetX,
     qrOffsetY,
+    withBorder = false,
   } = options;
 
   return new Promise((resolve) => {
@@ -265,11 +335,6 @@ function enhanceCardCanvas(baseDataUrl, options) {
     const needsBackTextEdit =
       side === 'back' && (textBoldness > 0 || textScale !== 100 || backAddressOffsetX !== 0 || backAddressOffsetY !== 0);
     const needsBackQrEdit = side === 'back' && (qrScale !== 100 || qrOffsetX !== 0 || qrOffsetY !== 0);
-
-    if (!needsPhotoEdit && !needsFrontTextEdit && !needsFrontDisclaimerEdit && !needsBackTextEdit && !needsBackQrEdit) {
-      resolve(baseDataUrl);
-      return;
-    }
 
     const img = new Image();
     img.onload = () => {
@@ -342,6 +407,12 @@ function enhanceCardCanvas(baseDataUrl, options) {
         }
       }
 
+      if (withBorder || needsPhotoEdit || needsFrontTextEdit || needsFrontDisclaimerEdit || needsBackTextEdit || needsBackQrEdit) {
+        if (withBorder) {
+          drawBoldCardBorder(ctx, w, h);
+        }
+      }
+
       const outUrl = canvas.toDataURL('image/png');
       resolve(isValidImageUrl(outUrl) ? outUrl : baseDataUrl);
     };
@@ -400,6 +471,7 @@ export default function PvcIdCardMaker() {
 
   const isAadhaarMode = selectedPreset === 'eaadhaar';
   const isVoterMode = selectedPreset === 'voterId';
+  const hasCardBorder = isAadhaarMode || isVoterMode;
   const outputSpec = isAadhaarMode
     ? AADHAAR_CARD_SPEC
     : isVoterMode
@@ -492,7 +564,8 @@ export default function PvcIdCardMaker() {
         pxWidth,
         pxHeight,
         cropMime,
-        cropQuality
+        cropQuality,
+        hasCardBorder
       );
       const backUrl = safeCropCardUrl(
         pageCanvas,
@@ -500,7 +573,8 @@ export default function PvcIdCardMaker() {
         pxWidth,
         pxHeight,
         cropMime,
-        cropQuality
+        cropQuality,
+        hasCardBorder
       );
 
       if (!frontUrl || !backUrl) {
@@ -515,6 +589,7 @@ export default function PvcIdCardMaker() {
         dpi: outputDpi,
         widthMm: 90,
         heightMm: 60,
+        hasBorder: hasCardBorder,
       });
     } catch (err) {
       if (err?.name === 'PasswordException') {
@@ -533,12 +608,24 @@ export default function PvcIdCardMaker() {
       return;
     }
 
-    if (isVoterMode) {
-      setCardPair(rawPair);
-      return;
-    }
-
     let cancelled = false;
+
+    if (isVoterMode) {
+      Promise.all([
+        addBorderToDataUrl(rawPair.frontUrl, 'image/jpeg', 0.9),
+        addBorderToDataUrl(rawPair.backUrl, 'image/jpeg', 0.9),
+      ]).then(([borderedFront, borderedBack]) => {
+        if (cancelled) return;
+        setCardPair({
+          ...rawPair,
+          frontUrl: borderedFront,
+          backUrl: borderedBack,
+        });
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const commonOpts = {
       photoBox: activePhotoBox,
@@ -558,6 +645,7 @@ export default function PvcIdCardMaker() {
       qrScale,
       qrOffsetX,
       qrOffsetY,
+      withBorder: isAadhaarMode,
     };
 
     Promise.all([
@@ -577,6 +665,7 @@ export default function PvcIdCardMaker() {
     };
   }, [
     rawPair,
+    isAadhaarMode,
     isVoterMode,
     photoBrightness,
     photoContrast,
@@ -629,6 +718,11 @@ export default function PvcIdCardMaker() {
           max-height: 60mm !important;
           display: block !important;
           object-fit: fill !important;
+        }
+
+        .mnc-pvc-card-bordered {
+          border: 3px solid #000000 !important;
+          box-sizing: border-box !important;
         }
 
         @media print {
@@ -762,30 +856,30 @@ export default function PvcIdCardMaker() {
             <strong>🎯 Crop Calibration Bar (% of PDF Page) — Auto-Saved:</strong>
             <span className="mnc-calib-hint">
               {isVoterMode
-                ? 'e-EPIC Voter PDF 300 DPI aur compact resolution par crop hoga (Aadhaar 600 DPI settings par koi asar nahi).'
-                : 'Aadhaar ya Voter PDF mein card position thodi alag ho to yahan se adjust karein (Card: 90mm × 60mm, Gap: 2mm).'}
+                ? 'e-EPIC Voter PDF 300 DPI aur black bold border ke saath crop hoga (Aadhaar 600 DPI settings par koi asar nahi).'
+                : 'Aadhaar ya Voter PDF mein front/back card ke charo taraf black bold border apply hota hai (Card: 90mm × 60mm, Gap: 2mm).'}
             </span>
           </div>
           <div className="mnc-calib-inputs">
             <label>
               Top Y (%)
-              <input type="number" step="0.2" value={crop.y} onChange={(e) => updateField('y', e.target.value)} />
+              <input type="number" step="0.1" value={crop.y} onChange={(e) => updateField('y', e.target.value)} />
             </label>
             <label>
               Height (%)
-              <input type="number" step="0.2" value={crop.h} onChange={(e) => updateField('h', e.target.value)} />
+              <input type="number" step="0.1" value={crop.h} onChange={(e) => updateField('h', e.target.value)} />
             </label>
             <label>
               Front X (%)
-              <input type="number" step="0.2" value={crop.frontX} onChange={(e) => updateField('frontX', e.target.value)} />
+              <input type="number" step="0.1" value={crop.frontX} onChange={(e) => updateField('frontX', e.target.value)} />
             </label>
             <label>
               Back X (%)
-              <input type="number" step="0.2" value={crop.backX} onChange={(e) => updateField('backX', e.target.value)} />
+              <input type="number" step="0.1" value={crop.backX} onChange={(e) => updateField('backX', e.target.value)} />
             </label>
             <label>
               Width (%)
-              <input type="number" step="0.2" value={crop.w} onChange={(e) => updateField('w', e.target.value)} />
+              <input type="number" step="0.1" value={crop.w} onChange={(e) => updateField('w', e.target.value)} />
             </label>
             <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => applyPreset(selectedPreset)}>
               Reset Preset
@@ -1245,7 +1339,7 @@ export default function PvcIdCardMaker() {
             className={`mnc-pvc-stage ${layoutMode} pvc-preview-zoom ${layoutMode === 'a4' ? 'a4-preview-zoom' : ''} printable-sheet mnc-pvc-print-only-stage`}
             style={{ '--pvc-preview-zoom': previewZoom, marginTop: '3mm', marginLeft: '5mm', marginRight: '5mm', gap: '2mm' }}
           >
-            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
+            <div className={`mnc-pvc-card-box ${hasCardBorder ? 'mnc-pvc-card-bordered' : ''}`} style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.frontUrl} alt="Card Front" className="cr80-card-img" />
               {!isVoterMode && showBoxesOnCard && (
                 <>
@@ -1292,7 +1386,7 @@ export default function PvcIdCardMaker() {
               )}
             </div>
 
-            <div className="mnc-pvc-card-box" style={{ position: 'relative', display: 'inline-block' }}>
+            <div className={`mnc-pvc-card-box ${hasCardBorder ? 'mnc-pvc-card-bordered' : ''}`} style={{ position: 'relative', display: 'inline-block' }}>
               <img src={cardPair.backUrl} alt="Card Back" className="cr80-card-img" />
               {!isVoterMode && showBoxesOnCard && (
                 <>
