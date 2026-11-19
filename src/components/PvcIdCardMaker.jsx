@@ -7,11 +7,11 @@ const PVC_STORAGE_KEY = 'mnc_pvc_card_calibration_v1';
 const CARD_PRESETS = {
   eaadhaar: {
     label: 'e-Aadhaar PDF (Bottom Cut)',
-    y: 68.5,
-    h: 24.5,
-    frontX: 5.5,
-    backX: 51.0,
-    w: 43.5,
+    y: 72.2,
+    h: 20.6,
+    frontX: 7.6,
+    backX: 50.5,
+    w: 42.0,
   },
   voterId: {
     label: 'e-EPIC Voter ID PDF',
@@ -50,7 +50,12 @@ export default function PvcIdCardMaker() {
   const [crop, setCrop] = useState(() => {
     try {
       const saved = localStorage.getItem(PVC_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : CARD_PRESETS.eaadhaar;
+      if (!saved) return CARD_PRESETS.eaadhaar;
+      const savedCrop = JSON.parse(saved);
+      const previousAadhaarCrop = { y: 68.8, h: 24, frontX: 7.6, backX: 50.5, w: 42 };
+      const isPreviousAadhaarCrop = Object.entries(previousAadhaarCrop)
+        .every(([key, value]) => Number(savedCrop[key]) === value);
+      return isPreviousAadhaarCrop ? CARD_PRESETS.eaadhaar : savedCrop;
     } catch {
       return CARD_PRESETS.eaadhaar;
     }
