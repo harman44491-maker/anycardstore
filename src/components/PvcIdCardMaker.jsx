@@ -49,7 +49,7 @@ const CARD_PRESETS = {
 };
 
 export default function PvcIdCardMaker() {
-  const [pdfFile, setPdfFile] = useState(null);
+  const [, set] = useState(null);
   const [pdfPassword, setPdfPassword] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('eaadhaar');
   const [layoutMode, setLayoutMode] = useState('a4');
@@ -97,7 +97,7 @@ export default function PvcIdCardMaker() {
   };
 
   const handleExtract = async () => {
-    if (!pdfFile) {
+    if (!) {
       setErrorMsg('Kripya pehle Aadhaar, Voter, ya PAN PDF file select karein.');
       return;
     }
@@ -107,7 +107,7 @@ export default function PvcIdCardMaker() {
 
     try {
       const { pxWidth, pxHeight } = outputSpec;
-      const sourceRenderScale = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC.renderScale : 3;
+      const sourceRenderScale = selectedPreset === 'eaadhaar' ? AADHAAR_CARD_SPEC.renderScale : 4.16;
       const pageCanvas = await renderPdfPageToCanvas(pdfFile, sourceRenderScale, pdfPassword.trim());
 
       const frontUrl = cropPercentToCardCanvas(
@@ -177,7 +177,7 @@ export default function PvcIdCardMaker() {
         <div className="mnc-controls-row" style={{ marginTop: '16px', justifyContent: 'flex-start' }}>
           <div className="mnc-upload-box">
             <label>Upload ID Card PDF *</label>
-            <input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
+            <input type="file" accept="application/pdf" onChange={(e) => set(e.target.files?.[0] || null)} />
           </div>
 
           <div className="mnc-upload-box">
