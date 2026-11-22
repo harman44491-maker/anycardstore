@@ -57,6 +57,23 @@ test('resizing and normalizing enforce minimum size and page boundaries', () => 
   });
 });
 
+test('unlocked custom crops can use independent dimensions and remain within page bounds', () => {
+  const rect = updateCropRect({
+    mode: 'resize',
+    origin: { x: 15, y: 20, w: 35, h: 30 },
+    startPoint: { x: 50, y: 50 },
+    currentPoint: { x: 72, y: 58 },
+  });
+
+  assert.deepEqual(rect, { x: 15, y: 20, w: 57, h: 38 });
+  assert.deepEqual(normalizeCropRect({ x: 90, y: 90, w: 30, h: 25 }), {
+    x: 70,
+    y: 75,
+    w: 30,
+    h: 25,
+  });
+});
+
 test('centered crop fits portrait pages at CR80 aspect without distortion', () => {
   const pageWidth = 600;
   const pageHeight = 900;

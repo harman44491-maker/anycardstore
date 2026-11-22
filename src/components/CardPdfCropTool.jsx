@@ -1,17 +1,46 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { SHOP_CONFIG } from '../config/shopConfig';
 import { createTwoPageCardPdf } from '../utils/cardPdfExport';
 import {
   createCenteredCrop,
   getCropPercentAspect,
+  normalizeCropRect,
   updateCropRect,
 } from '../utils/cropGeometry';
 import { cropPercentToCardCanvas, renderPdfDocumentPage } from '../utils/pdfRenderer';
 
-const OUTPUT_DPI = 300;
+const OUTPUT_DPI = 600;
 const RENDER_SCALE = OUTPUT_DPI / 72;
-const CARD_SPEC = SHOP_CONFIG.cr80CardSpec;
+const CARD_SPEC = {
+  widthMm: 88,
+  heightMm: 58,
+  pxWidth: Math.round((88 * OUTPUT_DPI) / 25.4),
+  pxHeight: Math.round((58 * OUTPUT_DPI) / 25.4),
+};
 const CARD_ASPECT = CARD_SPEC.widthMm / CARD_SPEC.heightMm;
+const PAIR_GAP_MM = 2;
+const PAIR_GAP_PX = Math.round((PAIR_GAP_MM * OUTPUT_DPI) / 25.4);
+
+function loadImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Could not prepare side-by-side preview.'));
+    image.src = dataUrl;
+  });
+}
+
+async function createSideBySidePreview(frontUrl, backUrl) {
+  const [front, back] = await Promise.all([loadImage(frontUrl), loadImage(backUrl)]);
+  const canvas = document.createElement('canvas');
+  canvas.width = front.width + PAIR_GAP_PX + back.width;
+  canvas.height = Math.max(front.height, back.height);
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#fff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(front, 0, 0);
+  context.drawImage(back, front.width + PAIR_GAP_PX, 0);
+  return canvas.toDataURL('image/png');
+}
 
 function isPasswordError(error) {
   return error?.name === 'PasswordException';
@@ -31,7 +60,20 @@ function safeFileName(name) {
   return name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').replace(/\.pdf$/i, '') || 'card';
 }
 
-function CropEditor({ label, page, pageCount, crop, onPageChange, onCropChange, onReset }) {
+function CropEditor({
+  label,
+  page,
+  pageCount,
+  crop,
+  lockAspect,
+  useFullPage,
+  onPageChange,
+  onCropChange,
+  onCropFieldChange,
+  onLockAspectChange,
+  onUseFullPageChange,
+  onReset,
+}) {
   const editorRef = useRef(null);
   const sourceCanvasRef = useRef(null);
   const dragRef = useRef(null);
@@ -52,7 +94,7 @@ function CropEditor({ label, page, pageCount, crop, onPageChange, onCropChange, 
   };
 
   const handlePointerDown = (event) => {
-    if (!page) return;
+    if (!page || useFullPage) return;
     event.preventDefault();
     const point = getPoint(event);
     const rect = crop;
@@ -65,7 +107,7 @@ function CropEditor({ label, page, pageCount, crop, onPageChange, onCropChange, 
       mode,
       startPoint: point,
       origin: { ...crop },
-      aspect,
+      aspect: lockAspect ? aspect : null,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -100,10 +142,10 @@ function CropEditor({ label, page, pageCount, crop, onPageChange, onCropChange, 
           </label>
         )}
       </div>
-      <p className="mnc-muted">Draw a crop, drag inside it to move, or use the corner handle to resize.</p>
+      <p className="mnc-muted">Draw or move the crop. Resize with the corner handle or enter exact crop percentages below.</p>
       <div
         ref={editorRef}
-        className={`mnc-crop-editor ${page ? '' : 'is-empty'}`}
+        className={`mnc-crop-editor ${page ? '' : 'is-empty'} ${useFullPage ? 'is-full-page' : ''}`}
         style={page ? { aspectRatio: `${page.canvas.width} / ${page.canvas.height}` } : undefined}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -118,19 +160,64 @@ function CropEditor({ label, page, pageCount, crop, onPageChange, onCropChange, 
               height={page.canvas.height}
               ref={sourceCanvasRef}
             />
-            <div className="mnc-crop-selection" style={{
-              left: `${crop.x}%`,
-              top: `${crop.y}%`,
-              width: `${crop.w}%`,
-              height: `${crop.h}%`,
-            }}>
-              <span className="mnc-crop-resize-handle" data-handle="resize" aria-label="Resize crop" />
-            </div>
+            {!useFullPage && (
+              <div className="mnc-crop-selection" style={{
+                left: `${crop.x}%`,
+                top: `${crop.y}%`,
+                width: `${crop.w}%`,
+                height: `${crop.h}%`,
+              }}>
+                <span className="mnc-crop-resize-handle" data-handle="resize" aria-label="Resize crop" />
+              </div>
+            )}
           </>
         ) : (
           <span>Load a PDF to preview this side</span>
         )}
       </div>
+      {page && (
+        <div className="mnc-crop-options">
+          <label>
+            <input
+              type="checkbox"
+              checked={useFullPage}
+              onChange={(event) => onUseFullPageChange(event.target.checked)}
+            />
+            Use full page (no crop)
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={lockAspect}
+              disabled={useFullPage}
+              onChange={(event) => onLockAspectChange(event.target.checked)}
+            />
+            Keep 88 × 58 mm ratio
+          </label>
+        </div>
+      )}
+      {page && !useFullPage && (
+        <div className="mnc-crop-percent-fields">
+          {[
+            ['x', 'Left X'],
+            ['y', 'Top Y'],
+            ['w', 'Width'],
+            ['h', 'Height'],
+          ].map(([field, fieldLabel]) => (
+            <label key={field}>
+              {fieldLabel} (%)
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={crop[field].toFixed(1)}
+                onChange={(event) => onCropFieldChange(field, event.target.value)}
+              />
+            </label>
+          ))}
+        </div>
+      )}
       <div className="mnc-crop-editor-actions">
         <button type="button" className="mnc-btn mnc-btn-ghost" onClick={onReset} disabled={!page}>
           Reset crop
@@ -145,6 +232,10 @@ export default function CardPdfCropTool() {
   const [pageCount, setPageCount] = useState(0);
   const [pages, setPages] = useState({ front: null, back: null });
   const [crops, setCrops] = useState({ front: null, back: null });
+  const [cropOptions, setCropOptions] = useState({
+    front: { lockAspect: true, useFullPage: false },
+    back: { lockAspect: true, useFullPage: false },
+  });
   const [preparedSides, setPreparedSides] = useState(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -240,29 +331,65 @@ export default function CardPdfCropTool() {
     setPreparedSides(null);
   };
 
-  const handlePrepareSides = () => {
+  const updateCropField = (side, field, rawValue) => {
+    const value = Number(rawValue);
+    if (!Number.isFinite(value) || !pages[side] || !crops[side]) return;
+
+    const options = cropOptions[side];
+    const aspect = options.lockAspect
+      ? getCropPercentAspect(pages[side].canvas.width, pages[side].canvas.height, CARD_ASPECT)
+      : null;
+    const nextCrop = { ...crops[side], [field]: value };
+    if (aspect && field === 'w') nextCrop.h = value / aspect;
+    if (aspect && field === 'h') nextCrop.w = value * aspect;
+    updateCrop(side, normalizeCropRect(nextCrop, aspect));
+  };
+
+  const updateCropOption = (side, field, value) => {
+    const nextOptions = { ...cropOptions[side], [field]: value };
+    setCropOptions((current) => ({ ...current, [side]: nextOptions }));
+    if (field === 'lockAspect' && value && pages[side] && crops[side]) {
+      const aspect = getCropPercentAspect(
+        pages[side].canvas.width,
+        pages[side].canvas.height,
+        CARD_ASPECT
+      );
+      setCrops((current) => ({ ...current, [side]: normalizeCropRect(current[side], aspect) }));
+    }
+    setPreparedSides(null);
+  };
+
+  const handlePrepareSides = async () => {
     if (!pages.front || !pages.back) {
       setErrorMessage('Load both card sides before exporting.');
       return;
     }
 
+    setLoading(true);
+    setErrorMessage('');
     try {
-      const front = cropPercentToCardCanvas(
-        pages.front.canvas,
-        crops.front,
+      const renderSide = (side) => cropPercentToCardCanvas(
+        pages[side].canvas,
+        cropOptions[side].useFullPage ? { x: 0, y: 0, w: 100, h: 100 } : crops[side],
         CARD_SPEC.pxWidth,
-        CARD_SPEC.pxHeight
+        CARD_SPEC.pxHeight,
+        true
       );
+      const front = renderSide('front');
       const back = cropPercentToCardCanvas(
         pages.back.canvas,
-        crops.back,
+        cropOptions.back.useFullPage ? { x: 0, y: 0, w: 100, h: 100 } : crops.back,
         CARD_SPEC.pxWidth,
-        CARD_SPEC.pxHeight
+        CARD_SPEC.pxHeight,
+        true
       );
-      setPreparedSides({ front, back });
+      const pair = await createSideBySidePreview(front, back);
+      setPreparedSides({ front, back, pair });
       setErrorMessage('');
     } catch (error) {
       setErrorMessage(`Could not prepare the card sides: ${getErrorMessage(error)}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -294,7 +421,7 @@ export default function CardPdfCropTool() {
     if (!preparedSides || !pdfFile) return;
     const link = document.createElement('a');
     link.href = preparedSides[side];
-    link.download = `${safeFileName(pdfFile.name)}_${side}_${OUTPUT_DPI}dpi.png`;
+    link.download = `${safeFileName(pdfFile.name)}_${side === 'pair' ? 'front-back' : side}_${OUTPUT_DPI}dpi.png`;
     link.click();
   };
 
@@ -319,7 +446,7 @@ export default function CardPdfCropTool() {
           <button type="button" className="mnc-btn mnc-btn-primary" disabled={loading || !pdfFile} onClick={handleLoadPdf}>
             {loading ? 'Loading PDF...' : 'Load PDF pages'}
           </button>
-          <span className="mnc-muted">Card output: {CARD_SPEC.widthMm} × {CARD_SPEC.heightMm} mm at {OUTPUT_DPI} DPI</span>
+          <span className="mnc-muted">          Card output: {CARD_SPEC.widthMm} × {CARD_SPEC.heightMm} mm at {OUTPUT_DPI} DPI</span>
         </div>
 
         {errorMessage && <p className="mnc-crop-error" role="alert">{errorMessage}</p>}
@@ -332,8 +459,13 @@ export default function CardPdfCropTool() {
               page={pages[side]}
               pageCount={pageCount}
               crop={crops[side]}
+              lockAspect={cropOptions[side].lockAspect}
+              useFullPage={cropOptions[side].useFullPage}
               onPageChange={(pageNumber) => loadPage(side, pageNumber)}
               onCropChange={(crop) => updateCrop(side, crop)}
+              onCropFieldChange={(field, value) => updateCropField(side, field, value)}
+              onLockAspectChange={(value) => updateCropOption(side, 'lockAspect', value)}
+              onUseFullPageChange={(value) => updateCropOption(side, 'useFullPage', value)}
               onReset={() => {
                 const page = pages[side];
                 if (page) {
@@ -350,15 +482,18 @@ export default function CardPdfCropTool() {
           disabled={loading || !pages.front || !pages.back}
           onClick={handlePrepareSides}
         >
-          Prepare front and back previews
+          {loading ? 'Preparing card previews...' : 'Prepare front and back previews'}
         </button>
       </div>
 
       {preparedSides && (
         <div className="mnc-card mnc-mt-20">
           <h3>Card-size output preview</h3>
-          <p className="mnc-muted">The combined PDF contains two pages: front first, then back. Each page is {CARD_SPEC.widthMm} × {CARD_SPEC.heightMm} mm.</p>
-          <div className="mnc-card-crop-output">
+          <p className="mnc-muted">
+            The combined PDF contains two pages: front first, then back. Each page is {CARD_SPEC.widthMm} × {CARD_SPEC.heightMm} mm.
+            Digital lighting is preview-only; downloads and print use the original prepared pixels.
+          </p>
+          <div className="mnc-card-crop-output digital-light-preview">
             <figure>
               <img src={preparedSides.front} alt="Prepared card front" />
               <figcaption>Front side</figcaption>
@@ -371,9 +506,31 @@ export default function CardPdfCropTool() {
           <div className="mnc-center-actions">
             <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadPng('front')}>Download front PNG</button>
             <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadPng('back')}>Download back PNG</button>
+            <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadPng('pair')}>Download side-by-side PNG</button>
             <button type="button" className="mnc-btn mnc-btn-success" disabled={loading} onClick={handleDownloadPdf}>
               {loading ? 'Creating PDF...' : 'Download two-page card PDF'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {preparedSides && (
+        <div className="mnc-card mnc-mt-20 card-pair-print-card">
+          <div className="mnc-row-between">
+            <div>
+              <h3>Front + back side-by-side print</h3>
+              <p className="mnc-muted">One 88 × 58 mm front and one 88 × 58 mm back with a {PAIR_GAP_MM} mm gap.</p>
+            </div>
+            <button type="button" className="mnc-btn mnc-btn-success" onClick={() => window.print()}>
+              Print side-by-side
+            </button>
+          </div>
+          <div className="card-pair-print-sheet printable-sheet">
+            <img
+              className="card-pair-print-image digital-light-preview-image"
+              src={preparedSides.pair}
+              alt="Card front and back side-by-side"
+            />
           </div>
         </div>
       )}

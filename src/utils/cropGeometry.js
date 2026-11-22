@@ -10,7 +10,7 @@ export function getCropPercentAspect(pageWidth, pageHeight, cardAspect) {
 
 export function createCenteredCrop(pageWidth, pageHeight, cardAspect) {
   const aspect = getCropPercentAspect(pageWidth, pageHeight, cardAspect);
-  const h = Math.min(80, 80 / aspect);
+  const h = Math.min(60, 60 / aspect);
   const w = aspect * h;
   return {
     x: (100 - w) / 2,
@@ -20,11 +20,17 @@ export function createCenteredCrop(pageWidth, pageHeight, cardAspect) {
   };
 }
 
-export function normalizeCropRect(rect, aspect) {
-  const maxHeight = Math.min(100, 100 / aspect);
-  const minHeight = Math.min(maxHeight, Math.max(MIN_CROP_SIZE, MIN_CROP_SIZE / aspect));
-  const h = clamp(Math.min(rect.h, rect.w / aspect), minHeight, maxHeight);
-  const w = aspect * h;
+export function normalizeCropRect(rect, aspect = null) {
+  let w = clamp(rect.w, MIN_CROP_SIZE, 100);
+  let h = clamp(rect.h, MIN_CROP_SIZE, 100);
+
+  if (aspect) {
+    const maxHeight = Math.min(100, 100 / aspect);
+    const minHeight = Math.min(maxHeight, Math.max(MIN_CROP_SIZE, MIN_CROP_SIZE / aspect));
+    h = clamp(Math.min(h, w / aspect), minHeight, maxHeight);
+    w = aspect * h;
+  }
+
   const x = clamp(rect.x, 0, 100 - w);
   const y = clamp(rect.y, 0, 100 - h);
 
@@ -42,11 +48,12 @@ export function updateCropRect({ mode, origin, startPoint, currentPoint, aspect 
     const dy = currentPoint.y - startPoint.y;
     let w = Math.abs(dx);
     let h = Math.abs(dy);
-    if (h === 0) h = w / aspect;
-    else if (w === 0) w = h * aspect;
-
-    if (w / h > aspect) w = h * aspect;
-    else h = w / aspect;
+    if (aspect) {
+      if (h === 0) h = w / aspect;
+      else if (w === 0) w = h * aspect;
+      if (w / h > aspect) w = h * aspect;
+      else h = w / aspect;
+    }
 
     return normalizeCropRect({
       x: dx < 0 ? startPoint.x - w : startPoint.x,
@@ -65,6 +72,14 @@ export function updateCropRect({ mode, origin, startPoint, currentPoint, aspect 
   }
 
   if (mode === 'resize') {
+    if (!aspect) {
+      return normalizeCropRect({
+        ...origin,
+        w: currentPoint.x - origin.x,
+        h: currentPoint.y - origin.y,
+      });
+    }
+
     const x = clamp(origin.x, 0, 100 - MIN_CROP_SIZE);
     const y = clamp(origin.y, 0, 100 - MIN_CROP_SIZE);
     const maxHeight = Math.min(100 - y, (100 - x) / aspect, 100 / aspect);
