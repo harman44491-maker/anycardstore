@@ -6,7 +6,7 @@ const TOOLS = [
     id: 'ayushman',
     title: 'Ayushman & Sehat Card Maker',
     desc: 'Split up to 5 health card PDFs into Front & Back at 300 DPI and print on A4.',
-    badge: 'A4 · 90×57 mm',
+    badge: 'A4 · 88×58 mm',
   },
   {
     id: 'pvc',
@@ -19,6 +19,12 @@ const TOOLS = [
     title: 'Passport Photo Sheet Maker',
     desc: 'Crop photos to 3.5 cm × 4.5 cm (300 DPI) with brightness/contrast and arrange on sheets.',
     badge: '3.5×4.5 cm',
+  },
+  {
+    id: 'cropprint',
+    title: 'Card PDF Crop & Print',
+    desc: 'Crop original front and back from any PDF pages and export a card-size, two-page PDF.',
+    badge: '85.6×54 mm · 300 DPI',
   },
 ];
 

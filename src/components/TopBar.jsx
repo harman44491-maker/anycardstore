@@ -6,6 +6,7 @@ const TITLES = {
   ayushman: 'Ayushman & Mukhya Mantri Sehat Card Maker',
   passport: 'Passport Photo Sheet Maker (3.5 × 4.5 cm)',
   pvc: 'Aadhaar, Voter & PAN PVC ID Card Maker',
+  cropprint: 'Card PDF Crop & Print',
 };
 
 export default function TopBar({ activeTool }) {
