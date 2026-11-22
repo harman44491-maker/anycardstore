@@ -95,13 +95,21 @@
 
   .card-pair-print-image {
     display: block !important;
-    width: 178mm !important;
-    height: 58mm !important;
     max-width: none !important;
     border: 0 !important;
     box-shadow: none !important;
     filter: none !important;
     object-fit: fill !important;
+  }
+
+  .card-pair-print-image.vertical {
+    width: 88mm !important;
+    height: 118mm !important;
+  }
+
+  .card-pair-print-image.horizontal {
+    width: 178mm !important;
+    height: 58mm !important;
   }
 
   .digital-light-preview,

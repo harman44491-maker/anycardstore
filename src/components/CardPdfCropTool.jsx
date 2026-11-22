@@ -29,17 +29,30 @@ function loadImage(dataUrl) {
   });
 }
 
-async function createSideBySidePreview(frontUrl, backUrl) {
+async function createPairPreview(frontUrl, backUrl, orientation) {
   const [front, back] = await Promise.all([loadImage(frontUrl), loadImage(backUrl)]);
   const canvas = document.createElement('canvas');
-  canvas.width = front.width + PAIR_GAP_PX + back.width;
-  canvas.height = Math.max(front.height, back.height);
+  const isVertical = orientation === 'vertical';
+  canvas.width = isVertical ? Math.max(front.width, back.width) : front.width + PAIR_GAP_PX + back.width;
+  canvas.height = isVertical ? front.height + PAIR_GAP_PX + back.height : Math.max(front.height, back.height);
   const context = canvas.getContext('2d');
   context.fillStyle = '#fff';
   context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(front, 0, 0);
-  context.drawImage(back, front.width + PAIR_GAP_PX, 0);
+  if (isVertical) {
+    context.drawImage(front, 0, 0);
+    context.drawImage(back, 0, front.height + PAIR_GAP_PX);
+  } else {
+    context.drawImage(front, 0, 0);
+    context.drawImage(back, front.width + PAIR_GAP_PX, 0);
+  }
   return canvas.toDataURL('image/png');
+}
+
+function getCropBounds(page) {
+  return {
+    maxWidthPercent: Math.min(100, (Math.floor((CARD_SPEC.widthMm * OUTPUT_DPI) / 25.4) / page.canvas.width) * 100),
+    maxHeightPercent: Math.min(100, (Math.floor((CARD_SPEC.heightMm * OUTPUT_DPI) / 25.4) / page.canvas.height) * 100),
+  };
 }
 
 function isPasswordError(error) {
@@ -67,6 +80,8 @@ function CropEditor({
   crop,
   lockAspect,
   useFullPage,
+  maxCropBounds,
+  cropSizeMm,
   onPageChange,
   onCropChange,
   onCropFieldChange,
@@ -108,6 +123,7 @@ function CropEditor({
       startPoint: point,
       origin: { ...crop },
       aspect: lockAspect ? aspect : null,
+      ...maxCropBounds,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -143,6 +159,9 @@ function CropEditor({
         )}
       </div>
       <p className="mnc-muted">Draw or move the crop. Resize with the corner handle or enter exact crop percentages below.</p>
+      <p className="mnc-muted">
+        Crop limit: {CARD_SPEC.widthMm} × {CARD_SPEC.heightMm} mm. Current crop: {cropSizeMm.width.toFixed(1)} × {cropSizeMm.height.toFixed(1)} mm.
+      </p>
       <div
         ref={editorRef}
         className={`mnc-crop-editor ${page ? '' : 'is-empty'} ${useFullPage ? 'is-full-page' : ''}`}
@@ -209,7 +228,9 @@ function CropEditor({
               <input
                 type="number"
                 min="0"
-                max="100"
+                max={Math.min(100, field === 'x' || field === 'w'
+                  ? maxCropBounds.maxWidthPercent
+                  : maxCropBounds.maxHeightPercent)}
                 step="0.1"
                 value={crop[field].toFixed(1)}
                 onChange={(event) => onCropFieldChange(field, event.target.value)}
@@ -239,6 +260,7 @@ export default function CardPdfCropTool() {
   const [preparedSides, setPreparedSides] = useState(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [pairOrientation, setPairOrientation] = useState('vertical');
   const passwordRef = useRef('');
 
   const renderPageWithPrompt = async (file, pageNumber) => {
@@ -273,7 +295,12 @@ export default function CardPdfCropTool() {
       setPages((current) => ({ ...current, [side]: { canvas: result.canvas, pageNumber } }));
       setCrops((current) => ({
         ...current,
-        [side]: createCenteredCrop(result.canvas.width, result.canvas.height, CARD_ASPECT),
+        [side]: createCenteredCrop(
+          result.canvas.width,
+          result.canvas.height,
+          CARD_ASPECT,
+          getCropBounds(result)
+        ),
       }));
       setPreparedSides(null);
     } catch (error) {
@@ -315,8 +342,8 @@ export default function CardPdfCropTool() {
         back: { canvas: back.canvas, pageNumber: backPageNumber },
       });
       setCrops({
-        front: createCenteredCrop(front.canvas.width, front.canvas.height, CARD_ASPECT),
-        back: createCenteredCrop(back.canvas.width, back.canvas.height, CARD_ASPECT),
+        front: createCenteredCrop(front.canvas.width, front.canvas.height, CARD_ASPECT, getCropBounds(front)),
+        back: createCenteredCrop(back.canvas.width, back.canvas.height, CARD_ASPECT, getCropBounds(back)),
       });
       setPreparedSides(null);
     } catch (error) {
@@ -339,10 +366,11 @@ export default function CardPdfCropTool() {
     const aspect = options.lockAspect
       ? getCropPercentAspect(pages[side].canvas.width, pages[side].canvas.height, CARD_ASPECT)
       : null;
+    const bounds = getCropBounds(pages[side]);
     const nextCrop = { ...crops[side], [field]: value };
     if (aspect && field === 'w') nextCrop.h = value / aspect;
     if (aspect && field === 'h') nextCrop.w = value * aspect;
-    updateCrop(side, normalizeCropRect(nextCrop, aspect));
+    updateCrop(side, normalizeCropRect(nextCrop, aspect, bounds));
   };
 
   const updateCropOption = (side, field, value) => {
@@ -354,7 +382,10 @@ export default function CardPdfCropTool() {
         pages[side].canvas.height,
         CARD_ASPECT
       );
-      setCrops((current) => ({ ...current, [side]: normalizeCropRect(current[side], aspect) }));
+      setCrops((current) => ({
+        ...current,
+        [side]: normalizeCropRect(current[side], aspect, getCropBounds(pages[side])),
+      }));
     }
     setPreparedSides(null);
   };
@@ -383,7 +414,7 @@ export default function CardPdfCropTool() {
         CARD_SPEC.pxHeight,
         true
       );
-      const pair = await createSideBySidePreview(front, back);
+      const pair = await createPairPreview(front, back, pairOrientation);
       setPreparedSides({ front, back, pair });
       setErrorMessage('');
     } catch (error) {
@@ -417,11 +448,28 @@ export default function CardPdfCropTool() {
     }
   };
 
+  const changePairOrientation = async (orientation) => {
+    setPairOrientation(orientation);
+    if (!preparedSides) return;
+
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      const pair = await createPairPreview(preparedSides.front, preparedSides.back, orientation);
+      setPreparedSides((current) => current && { ...current, pair });
+    } catch (error) {
+      setErrorMessage(`Could not prepare the card layout: ${getErrorMessage(error)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const downloadPng = (side) => {
     if (!preparedSides || !pdfFile) return;
     const link = document.createElement('a');
     link.href = preparedSides[side];
-    link.download = `${safeFileName(pdfFile.name)}_${side === 'pair' ? 'front-back' : side}_${OUTPUT_DPI}dpi.png`;
+    const outputName = side === 'pair' ? `front-back-${pairOrientation}` : side;
+    link.download = `${safeFileName(pdfFile.name)}_${outputName}_${OUTPUT_DPI}dpi.png`;
     link.click();
   };
 
@@ -446,7 +494,7 @@ export default function CardPdfCropTool() {
           <button type="button" className="mnc-btn mnc-btn-primary" disabled={loading || !pdfFile} onClick={handleLoadPdf}>
             {loading ? 'Loading PDF...' : 'Load PDF pages'}
           </button>
-          <span className="mnc-muted">          Card output: {CARD_SPEC.widthMm} × {CARD_SPEC.heightMm} mm at {OUTPUT_DPI} DPI</span>
+          <span className="mnc-muted">Card output: {CARD_SPEC.widthMm} × {CARD_SPEC.heightMm} mm at {OUTPUT_DPI} DPI</span>
         </div>
 
         {errorMessage && <p className="mnc-crop-error" role="alert">{errorMessage}</p>}
@@ -461,6 +509,11 @@ export default function CardPdfCropTool() {
               crop={crops[side]}
               lockAspect={cropOptions[side].lockAspect}
               useFullPage={cropOptions[side].useFullPage}
+              maxCropBounds={pages[side] ? getCropBounds(pages[side]) : { maxWidthPercent: 100, maxHeightPercent: 100 }}
+              cropSizeMm={pages[side] && crops[side] ? {
+                width: crops[side].w * pages[side].canvas.width * 25.4 / (OUTPUT_DPI * 100),
+                height: crops[side].h * pages[side].canvas.height * 25.4 / (OUTPUT_DPI * 100),
+              } : { width: 0, height: 0 }}
               onPageChange={(pageNumber) => loadPage(side, pageNumber)}
               onCropChange={(crop) => updateCrop(side, crop)}
               onCropFieldChange={(field, value) => updateCropField(side, field, value)}
@@ -469,7 +522,7 @@ export default function CardPdfCropTool() {
               onReset={() => {
                 const page = pages[side];
                 if (page) {
-                  updateCrop(side, createCenteredCrop(page.canvas.width, page.canvas.height, CARD_ASPECT));
+                  updateCrop(side, createCenteredCrop(page.canvas.width, page.canvas.height, CARD_ASPECT, getCropBounds(page)));
                 }
               }}
             />
@@ -506,7 +559,9 @@ export default function CardPdfCropTool() {
           <div className="mnc-center-actions">
             <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadPng('front')}>Download front PNG</button>
             <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadPng('back')}>Download back PNG</button>
-            <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadPng('pair')}>Download side-by-side PNG</button>
+            <button type="button" className="mnc-btn mnc-btn-ghost" onClick={() => downloadPng('pair')}>
+              Download {pairOrientation === 'vertical' ? 'vertical' : 'side-by-side'} PNG
+            </button>
             <button type="button" className="mnc-btn mnc-btn-success" disabled={loading} onClick={handleDownloadPdf}>
               {loading ? 'Creating PDF...' : 'Download two-page card PDF'}
             </button>
@@ -518,19 +573,45 @@ export default function CardPdfCropTool() {
         <div className="mnc-card mnc-mt-20 card-pair-print-card">
           <div className="mnc-row-between">
             <div>
-              <h3>Front + back side-by-side print</h3>
-              <p className="mnc-muted">One 88 × 58 mm front and one 88 × 58 mm back with a {PAIR_GAP_MM} mm gap.</p>
+              <h3>Front + back print layout</h3>
+              <p className="mnc-muted">
+                {pairOrientation === 'vertical' ? 'Front and back stacked vertically' : 'Front and back arranged side-by-side'}, with a {PAIR_GAP_MM} mm gap.
+              </p>
             </div>
             <button type="button" className="mnc-btn mnc-btn-success" onClick={() => window.print()}>
-              Print side-by-side
+              Print {pairOrientation === 'vertical' ? 'vertical' : 'side-by-side'}
             </button>
           </div>
-          <div className="card-pair-print-sheet printable-sheet">
+          <div className={`card-pair-print-sheet printable-sheet ${pairOrientation}`}>
             <img
-              className="card-pair-print-image digital-light-preview-image"
+              className={`card-pair-print-image digital-light-preview-image ${pairOrientation}`}
               src={preparedSides.pair}
-              alt="Card front and back side-by-side"
+              alt="Card front and back combined for printing"
+              style={{
+                width: pairOrientation === 'vertical' ? `${CARD_SPEC.widthMm}mm` : `${CARD_SPEC.widthMm * 2 + PAIR_GAP_MM}mm`,
+                height: pairOrientation === 'vertical'
+                  ? `${CARD_SPEC.heightMm * 2 + PAIR_GAP_MM}mm`
+                  : `${CARD_SPEC.heightMm}mm`,
+              }}
             />
+          </div>
+          <div className="mnc-center-actions card-pair-layout-actions">
+            <button
+              type="button"
+              className={`mnc-btn ${pairOrientation === 'vertical' ? 'mnc-btn-primary' : 'mnc-btn-ghost'}`}
+              disabled={loading || pairOrientation === 'vertical'}
+              onClick={() => changePairOrientation('vertical')}
+            >
+              Stack vertically
+            </button>
+            <button
+              type="button"
+              className={`mnc-btn ${pairOrientation === 'horizontal' ? 'mnc-btn-primary' : 'mnc-btn-ghost'}`}
+              disabled={loading || pairOrientation === 'horizontal'}
+              onClick={() => changePairOrientation('horizontal')}
+            >
+              Side-by-side
+            </button>
           </div>
         </div>
       )}

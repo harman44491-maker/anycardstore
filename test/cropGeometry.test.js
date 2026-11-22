@@ -74,6 +74,19 @@ test('unlocked custom crops can use independent dimensions and remain within pag
   });
 });
 
+test('crop size is capped by the requested physical dimensions', () => {
+  const bounds = { maxWidthPercent: 40, maxHeightPercent: 20 };
+  const rect = normalizeCropRect(
+    { x: 80, y: 80, w: 90, h: 90 },
+    2,
+    bounds
+  );
+
+  assert.deepEqual(rect, { x: 60, y: 80, w: 40, h: 20 });
+  assert.ok(rect.w <= bounds.maxWidthPercent);
+  assert.ok(rect.h <= bounds.maxHeightPercent);
+});
+
 test('centered crop fits portrait pages at CR80 aspect without distortion', () => {
   const pageWidth = 600;
   const pageHeight = 900;
@@ -84,6 +97,20 @@ test('centered crop fits portrait pages at CR80 aspect without distortion', () =
   assertCardAspect(rect, pageWidth, pageHeight);
   assert.ok(Math.abs(rect.x - (100 - rect.w) / 2) < 0.0001);
   assert.ok(Math.abs(rect.y - (100 - rect.h) / 2) < 0.0001);
+});
+
+test('default crop uses the full physical 88 by 58 mm size without exceeding it', () => {
+  const pageWidth = 6000;
+  const pageHeight = 9000;
+  const bounds = {
+    maxWidthPercent: (Math.floor((88 * 600) / 25.4) / pageWidth) * 100,
+    maxHeightPercent: (Math.floor((58 * 600) / 25.4) / pageHeight) * 100,
+  };
+  const rect = createCenteredCrop(pageWidth, pageHeight, CARD_ASPECT, bounds);
+
+  assert.ok(rect.w <= bounds.maxWidthPercent);
+  assert.ok(rect.h <= bounds.maxHeightPercent);
+  assertCardAspect(rect, pageWidth, pageHeight);
 });
 
 test('draw, move and resize preserve CR80 aspect and stay in landscape page bounds', () => {
