@@ -4,6 +4,7 @@ const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
   { id: 'ayushman', label: 'Ayushman / Sehat Card', icon: '🩺' },
   { id: 'pvc', label: 'Aadhaar / PVC ID Card', icon: '🪪' },
+  { id: 'cropprint', label: 'Card PDF Crop & Print', icon: '✂️' },
   { id: 'passport', label: 'Passport Photo Sheet', icon: '📷' },
 ];
 

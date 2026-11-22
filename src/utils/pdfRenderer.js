@@ -3,23 +3,44 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
-export async function renderPdfPageToCanvas(file, scale = 3, password = '') {
+export async function renderPdfDocumentPage(file, pageNumber = 1, scale = 3, password = '') {
+  if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+    throw new RangeError('PDF page number must be a positive integer.');
+  }
+
   const buffer = await file.arrayBuffer();
   const loadingTask = pdfjsLib.getDocument({
     data: buffer,
     password: password || undefined,
   });
 
-  const pdf = await loadingTask.promise;
-  const page = await pdf.getPage(1);
-  const viewport = page.getViewport({ scale });
+  let pdf;
+  try {
+    pdf = await loadingTask.promise;
+    if (pageNumber > pdf.numPages) {
+      throw new RangeError(`PDF has only ${pdf.numPages} page(s).`);
+    }
 
-  const canvas = document.createElement('canvas');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale });
 
-  const ctx = canvas.getContext('2d');
-  await page.render({ canvasContext: ctx, viewport }).promise;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    return { canvas, pageCount: pdf.numPages };
+  } finally {
+    if (pdf) {
+      await pdf.destroy();
+    } else {
+      await loadingTask.destroy();
+    }
+  }
+}
+
+export async function renderPdfPageToCanvas(file, scale = 3, password = '', pageNumber = 1) {
+  const { canvas } = await renderPdfDocumentPage(file, pageNumber, scale, password);
   return canvas;
 }
 

@@ -365,8 +365,18 @@ export default function PvcIdCardMaker() {
           max-height: 60mm !important;
           display: block !important;
           object-fit: fill !important;
-          border: none !important;
           box-sizing: border-box !important;
+        }
+
+        .mnc-pvc-print-only-stage .mnc-pvc-card-box {
+          border: 1px solid #000 !important;
+          border-radius: 0 !important;
+          overflow: hidden !important;
+        }
+
+        .mnc-pvc-print-only-stage .mnc-pvc-card-box .cr80-card-img {
+          border: none !important;
+          border-radius: 0 !important;
         }
 
         @media print {

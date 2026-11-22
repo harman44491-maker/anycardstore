@@ -153,6 +153,12 @@ body {
   margin: 14px 0;
 }
 
+.mnc-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 16px;
+}
+
 .mnc-upload-box {
   border: 1px dashed #cbd5e1;
   border-radius: 8px;
@@ -317,6 +323,124 @@ body {
   margin-top: 14px;
 }
 
+.mnc-crop-upload-row {
+  justify-content: flex-start;
+  margin-top: 16px;
+}
+
+.mnc-crop-editors {
+  margin: 18px 0;
+  align-items: start;
+}
+
+.mnc-crop-editor-card {
+  min-width: 0;
+  padding: 14px;
+}
+
+.mnc-crop-editor-card h4 {
+  margin: 0;
+}
+
+.mnc-crop-page-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mnc-crop-page-select select {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.mnc-crop-editor {
+  position: relative;
+  width: 100%;
+  margin-top: 12px;
+  overflow: hidden;
+  background: #e2e8f0;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+
+.mnc-crop-editor.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.mnc-crop-source {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.mnc-crop-selection {
+  position: absolute;
+  border: 2px solid #facc15;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.28);
+  cursor: move;
+  pointer-events: none;
+}
+
+.mnc-crop-resize-handle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #1d4ed8;
+  cursor: nwse-resize;
+  pointer-events: auto;
+}
+
+.mnc-crop-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.mnc-crop-error {
+  margin: 12px 0;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mnc-card-crop-output {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 18px;
+}
+
+.mnc-card-crop-output figure {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mnc-card-crop-output img {
+  display: block;
+  width: min(100%, 360px);
+  height: auto;
+  margin-bottom: 6px;
+  border: 1px solid #cbd5e1;
+}
+
 .pvc-preview-zoom-controls {
   display: inline-flex;
   align-items: center;
@@ -361,7 +485,7 @@ body {
 
 .ayushman-preview-canvas {
   height: auto;
-  aspect-ratio: 90 / 57;
+  aspect-ratio: 88 / 58;
 }
 
 .ayushman-print-sheet {
@@ -372,7 +496,7 @@ body {
   padding: 4mm 0 0;
   display: grid;
   grid-template-columns: 1fr;
-  grid-auto-rows: 57mm;
+  grid-auto-rows: 58mm;
   row-gap: 2mm;
   column-gap: 0;
   align-content: start;
@@ -381,20 +505,24 @@ body {
   overflow: hidden;
 }
 
+.ayushman-print-sheet:not(:last-child) {
+  margin-bottom: 16px;
+}
+
 .ayushman-print-sheet .mnc-card-pair {
-  width: 182mm;
-  height: 57mm;
-  min-height: 57mm;
+  width: 178mm;
+  height: 58mm;
+  min-height: 58mm;
   justify-self: center;
   flex-wrap: nowrap;
   gap: 2mm !important;
 }
 
 .ayushman-print-sheet .cr80-card-img {
-  width: 90mm;
-  height: 57mm;
+  width: 88mm;
+  height: 58mm;
   max-width: none;
-  flex: 0 0 90mm;
+  flex: 0 0 88mm;
   border: 0;
   border-radius: 0;
   object-fit: fill;
@@ -408,9 +536,42 @@ body {
   justify-content: center;
 }
 
+.passport-print-sheet {
+  display: grid;
+  grid-auto-flow: row;
+  align-content: start;
+  justify-content: start;
+  gap: 2mm;
+  box-sizing: border-box;
+  padding: 5mm;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.14);
+}
+
+.passport-print-sheet:not(:last-child) {
+  margin-bottom: 16px;
+}
+
 .passport-photo-item {
   width: 35mm;
   height: 45mm;
   object-fit: cover;
   border: 0.5px solid #cbd5e1;
+}
+
+.mnc-passport-custom-paper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.mnc-passport-custom-paper input,
+.mnc-controls-row input[type='number'] {
+  width: 92px;
+}
+
+.mnc-passport-error {
+  margin: 6px 0 0;
+  color: #b91c1c;
+  font-size: 13px;
 }

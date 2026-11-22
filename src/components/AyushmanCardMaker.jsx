@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { renderPdfPagesToCanvas, cropPercentToCardCanvas, fitCanvasToCardCanvas } from '../utils/pdfRenderer';
 
 const AYUSHMAN_CARD_SPEC = {
-  widthMm: 90,
-  heightMm: 57,
-  pxWidth: 1063,
-  pxHeight: 673,
+  widthMm: 88,
+  heightMm: 58,
+  pxWidth: Math.round((88 * 300) / 25.4),
+  pxHeight: Math.round((58 * 300) / 25.4),
   renderScale: 4.17,
 };
 
+const SETS_PER_A4_PAGE = 4;
 const STORAGE_KEY = 'mnc_ayushman_crop_calibration_v1';
 
 const PRESETS = {
@@ -149,6 +150,10 @@ export default function AyushmanCardMaker() {
   };
 
   const activeCard = cards[activeIndex];
+  const printSheets = [];
+  for (let index = 0; index < cards.length; index += SETS_PER_A4_PAGE) {
+    printSheets.push(cards.slice(index, index + SETS_PER_A4_PAGE));
+  }
 
   return (
     <section>
@@ -162,7 +167,7 @@ export default function AyushmanCardMaker() {
         <div className="mnc-row-between">
           <div>
             <h3>1. Upload Ayushman / Mukhya Mantri Sehat Card PDF(s)</h3>
-            <p className="mnc-muted">Ek baar mein 5 PDFs tak select karein. Har set ke Front aur Back card 90mm × 57mm size mein niklenge aur ek A4 sheet par 5 sets fit honge.</p>
+            <p className="mnc-muted">Ek baar mein 5 PDFs tak select karein. Har set ke Front aur Back card 88mm × 58mm size mein niklenge; 2mm gap ke saath har A4 page par 4 sets tak fit honge.</p>
           </div>
           <div className="mnc-preset-row">
             {Object.entries(PRESETS).map(([key, preset]) => (
@@ -222,7 +227,7 @@ export default function AyushmanCardMaker() {
         </div>
 
         <button type="button" className="mnc-btn mnc-btn-primary" disabled={loading} onClick={handleGenerate}>
-          {loading ? '⏳ Rendering 300 DPI...' : '⚡ Generate CR80 Cards'}
+          {loading ? '⏳ Rendering 300 DPI...' : '⚡ Generate 88 × 58 mm Cards'}
         </button>
       </div>
 
@@ -230,7 +235,7 @@ export default function AyushmanCardMaker() {
         <div className="mnc-card mnc-mt-20">
           <div className="mnc-row-between">
             <div>
-              <h3>2. Front & Back Preview (90mm × 57mm)</h3>
+              <h3>2. Front & Back Preview (88mm × 58mm)</h3>
               <p className="mnc-muted">
                 Card {activeIndex + 1} of {cards.length} — <strong>{activeCard.name}</strong>
               </p>
@@ -281,22 +286,24 @@ export default function AyushmanCardMaker() {
         <div className="mnc-card mnc-mt-20 ayushman-print-card">
           <div className="mnc-row-between">
             <div>
-              <h3>3. A4 Size Print Sheet ({cards.length} Card{cards.length > 1 ? 's' : ''})</h3>
-              <p className="mnc-muted">90mm × 57mm cards · 2mm gap between Front and Back · 5 sets on A4 with 4mm top margin. Print at 100%, with margins and headers/footers turned off.</p>
+              <h3>3. A4 Print Sheets ({printSheets.length} page{printSheets.length > 1 ? 's' : ''}, {cards.length} set{cards.length > 1 ? 's' : ''})</h3>
+              <p className="mnc-muted">88mm × 58mm cards · 2mm gap between Front and Back and between sets · Up to 4 sets per A4 page. Print at 100%, with margins and headers/footers turned off.</p>
             </div>
             <button type="button" className="mnc-btn mnc-btn-success" onClick={() => window.print()}>
               🖨️ Print / Save as A4 PDF
             </button>
           </div>
 
-          <div className="mnc-a4-preview printable-sheet ayushman-print-sheet">
-            {cards.map((card) => (
-              <div className="mnc-card-pair" key={card.id}>
-                <img src={card.frontDataUrl} alt={`${card.name} Front`} className="cr80-card-img" />
-                <img src={card.backDataUrl} alt={`${card.name} Back`} className="cr80-card-img" />
-              </div>
-            ))}
-          </div>
+          {printSheets.map((sheetCards, sheetIndex) => (
+            <div className="mnc-a4-preview printable-sheet ayushman-print-sheet" key={sheetIndex}>
+              {sheetCards.map((card) => (
+                <div className="mnc-card-pair" key={card.id}>
+                  <img src={card.frontDataUrl} alt={`${card.name} Front`} className="cr80-card-img" />
+                  <img src={card.backDataUrl} alt={`${card.name} Back`} className="cr80-card-img" />
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </section>
