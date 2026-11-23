@@ -65,24 +65,46 @@ export async function renderPdfPagesToCanvas(file, scale = 3, password = '') {
   return { pages, pageCount: pdf.numPages };
 }
 
-export function cropPercentToCardCanvas(sourceCanvas, rectPercent, outWidth = 1011, outHeight = 638) {
+export function cropPercentToCardCanvas(
+  sourceCanvas,
+  rectPercent,
+  outWidth = 1011,
+  outHeight = 638,
+  preserveAspect = false
+) {
   const { x, y, w, h } = rectPercent;
   const target = document.createElement('canvas');
   target.width = outWidth;
   target.height = outHeight;
 
   const ctx = target.getContext('2d');
-  ctx.drawImage(
-    sourceCanvas,
-    sourceCanvas.width * (x / 100),
-    sourceCanvas.height * (y / 100),
-    sourceCanvas.width * (w / 100),
-    sourceCanvas.height * (h / 100),
-    0,
-    0,
-    outWidth,
-    outHeight
-  );
+  const sx = sourceCanvas.width * (x / 100);
+  const sy = sourceCanvas.height * (y / 100);
+  const sw = sourceCanvas.width * (w / 100);
+  const sh = sourceCanvas.height * (h / 100);
+
+  if (preserveAspect) {
+    const scale = Math.min(outWidth / sw, outHeight / sh);
+    const drawWidth = sw * scale;
+    const drawHeight = sh * scale;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, outWidth, outHeight);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(
+      sourceCanvas,
+      sx,
+      sy,
+      sw,
+      sh,
+      (outWidth - drawWidth) / 2,
+      (outHeight - drawHeight) / 2,
+      drawWidth,
+      drawHeight
+    );
+  } else {
+    ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, outWidth, outHeight);
+  }
 
   return target.toDataURL('image/png');
 }

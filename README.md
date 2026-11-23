@@ -7,7 +7,7 @@
 - **Card PDF Crop & Print** (independent front/back page selection and CR80-proportioned crops; card-size PNGs and a two-page PDF)
 - **Auto-Saved Yellow Crop Calibration Bar** (Saved in browser `localStorage`)
 
-The generic Card PDF Crop & Print tool works only with pages from a user-selected PDF. Cropping and PDF export happen locally in the browser; protected PDFs prompt for their password, which is held only in memory for the current tool session and is never persisted.
+The generic Card PDF Crop & Print tool works only with pages from a user-selected PDF. It supports manually adjustable crop regions capped at 88×58 mm, full-page output without cropping, separate side PNGs, vertical or side-by-side front/back print/download images, and a two-page card-size PDF. Cropping and PDF export happen locally in the browser; protected PDFs prompt for their password, which is held only in memory for the current tool session and is never persisted.
 
 The Passport Photo Sheet Maker supports A4, 4×6-inch, Letter, Legal, and custom paper dimensions, with preset or custom photo-copy counts split across sheets as needed.
 
