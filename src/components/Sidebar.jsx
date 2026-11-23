@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { id: 'pvc', label: 'Aadhaar / PVC ID Card', icon: '🪪' },
   { id: 'cropprint', label: 'Card PDF Crop & Print', icon: '✂️' },
   { id: 'passport', label: 'Passport Photo Sheet', icon: '📷' },
+  { id: 'contact', label: 'Contact Us', icon: '💬' },
 ];
 
 export default function Sidebar({ activeTool, onSelectTool }) {
