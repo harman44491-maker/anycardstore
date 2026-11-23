@@ -1,8 +1,8 @@
 import React from 'react';
-import { SHOP_CONFIG } from '../config/shopConfig';
 
 const TITLES = {
-  dashboard: 'Counter Dashboard',
+  dashboard: 'Professional Service Dashboard',
+  contact: 'Contact & Customer Support',
   ayushman: 'Ayushman & Mukhya Mantri Sehat Card Maker',
   passport: 'Passport Photo Sheet Maker (3.5 × 4.5 cm)',
   pvc: 'Aadhaar, Voter & PAN PVC ID Card Maker',
@@ -14,11 +14,9 @@ export default function TopBar({ activeTool }) {
     <header className="mnc-topbar">
       <div>
         <h1>{TITLES[activeTool] || 'Mahadev Net Cafe'}</h1>
-        <p className="mnc-muted">{SHOP_CONFIG.address}</p>
+        <p className="mnc-muted">Mahadev Net Cafe · Digital Document & Print Studio</p>
       </div>
-      <div className="mnc-contact-pill">
-        <span>📞 {SHOP_CONFIG.phone}</span>
-      </div>
+
     </header>
   );
 }
