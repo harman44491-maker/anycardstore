@@ -575,3 +575,94 @@ body {
   color: #b91c1c;
   font-size: 13px;
 }
+
+
+/* Contact & customer support */
+.mnc-contact-page {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.mnc-contact-hero {
+  padding: clamp(28px, 5vw, 54px);
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 58%, #ecfdf5 100%);
+  text-align: center;
+}
+.mnc-contact-kicker {
+  display: inline-block;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+}
+.mnc-contact-hero h2 {
+  margin: 12px 0 10px;
+  color: #0f172a;
+  font-size: clamp(25px, 4vw, 36px);
+}
+.mnc-contact-hero > p {
+  max-width: 650px;
+  margin: 0 auto 22px;
+  color: #64748b;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.mnc-btn-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #16a34a;
+  color: #fff;
+  text-decoration: none;
+  padding: 13px 20px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(22, 163, 74, .18);
+}
+.mnc-btn-whatsapp:hover {
+  background: #15803d;
+}
+.mnc-contact-section {
+  margin-top: 28px;
+}
+.mnc-contact-section > h3 {
+  margin: 0 0 14px;
+  font-size: 19px;
+}
+.mnc-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.mnc-contact-option h4 {
+  margin: 12px 0 6px;
+  font-size: 16px;
+}
+.mnc-contact-icon {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #eff6ff;
+  font-size: 21px;
+}
+.mnc-contact-note {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  background: #f0fdf4;
+  color: #166534;
+}
+.mnc-contact-note p {
+  margin: 5px 0 0;
+  color: #15803d;
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .mnc-contact-hero { padding: 28px 18px; }
+  .mnc-content { padding: 18px 14px; }
+}
